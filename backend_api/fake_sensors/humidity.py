@@ -3,11 +3,6 @@ Fake Humidity Sensor (DHT22 — Sprint 1)
 ========================================
 Simulates bedroom humidity: 30-70%
 Inversely related to temperature.
-
-Replace with real DHT22 code:
-    import board, adafruit_dht
-    dht = adafruit_dht.DHT22(board.D4)
-    humidity = dht.humidity
 """
 
 import random

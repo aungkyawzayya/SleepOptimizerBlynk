@@ -3,12 +3,6 @@ Fake Dust/Air Quality Sensor (PMS5003 — Sprint 5)
 ===================================================
 Simulates PM2.5 levels: 5-25 µg/m³ baseline
 Occasional spikes when someone moves or fan turns on.
-
-Replace with real PMS5003 code:
-    from pms5003 import PMS5003
-    pms = PMS5003()
-    data = pms.read()
-    pm25 = data.pm_ug_per_m3(2.5)
 """
 
 import random

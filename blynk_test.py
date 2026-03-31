@@ -26,7 +26,7 @@ from collections import deque
 from dotenv import load_dotenv
 load_dotenv()
 
-import sensors
+import fake_sensors as sensors
 
 # Try to import Gemini AI module (optional)
 try:

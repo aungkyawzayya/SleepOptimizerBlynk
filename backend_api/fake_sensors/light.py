@@ -2,11 +2,6 @@
 Fake Light Sensor (BH1750 — Sprint 4)
 =======================================
 Simulates bedroom light: 0 lux at night, 50-500 lux during day.
-
-Replace with real BH1750 code:
-    import adafruit_bh1750
-    sensor = adafruit_bh1750.BH1750(i2c)
-    lux = sensor.lux
 """
 
 import random

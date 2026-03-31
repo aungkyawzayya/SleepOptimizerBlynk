@@ -3,10 +3,6 @@ Fake CO₂ Sensor (MH-Z19B — Sprint 2)
 ======================================
 Simulates bedroom CO₂: 400-1200ppm
 Rises gradually at night (closed room), drops during day.
-
-Replace with real MH-Z19B code:
-    import mh_z19
-    co2 = mh_z19.read_all()['co2']
 """
 
 import random

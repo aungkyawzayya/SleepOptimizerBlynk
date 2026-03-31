@@ -3,11 +3,6 @@ Fake Sound Sensor (MAX4466 — Sprint 3)
 ========================================
 Simulates bedroom noise: 20-45dB baseline
 Occasional spikes for snoring or traffic.
-
-Replace with real MAX4466 code:
-    import analogio
-    mic = analogio.AnalogIn(board.A0)
-    # Convert analog reading to dB
 """
 
 import random
