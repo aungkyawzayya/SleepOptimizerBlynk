@@ -3,10 +3,9 @@ import os
 import time
 import json
 import urllib.request
-from datetime import datetime
 
 ds18b20 = ""
-FASTAPI_URL = "http://136.119.125.251:8000/temperature"
+FASTAPI_URL = "http://136.119.125.251:8000/sensors/data"
 
 def setup():
     global ds18b20
@@ -30,9 +29,7 @@ def read_temperature():
 
 def send_to_fastapi(temp):
     payload = {
-        "temperature": temp,
-        "sensor_id": ds18b20,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "temperature": temp
     }
 
     data = json.dumps(payload).encode("utf-8")
