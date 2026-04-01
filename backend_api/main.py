@@ -8,7 +8,9 @@ Endpoints:
   Sensors:
   GET  /sensors/fake          → Read fake sensors + push to Blynk
   POST /sensors/data          → Receive real sensor data from Pi
-  GET  /sensors/history       → Recent sensor readings
+  GET  /sensors/history       → Recent sensor readings (memory)
+  GET  /sensors/latest-db     → Latest sensor reading from MySQL
+  GET  /sensors/history-db    → Recent sensor readings from MySQL
 
   AI:
   POST /ai/room-check         → Score + advice for current conditions
@@ -19,19 +21,19 @@ Run:
   python3 -m uvicorn main:app --reload --port 8000
 """
 
-import os
 import time
 from datetime import datetime
 from collections import deque
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional
 
+from database import get_connection
 import blynk_client
 import gemini_sleep
 
@@ -84,7 +86,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Sleep Optimizer API",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
@@ -92,14 +94,56 @@ app = FastAPI(
 # ══════════════════════════════════════════════════════════════
 # Helpers
 # ══════════════════════════════════════════════════════════════
+def save_sensor_data_to_mysql(data: dict) -> None:
+    """Save one sensor reading into MySQL."""
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        sql = """
+            INSERT INTO sensor_data
+            (temperature, humidity, co2, sound, light, dust, motion)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+
+        values = (
+            data.get("temperature"),
+            data.get("humidity"),
+            data.get("co2"),
+            data.get("sound"),
+            data.get("light"),
+            data.get("dust"),
+            data.get("motion"),
+        )
+
+        cursor.execute(sql, values)
+        conn.commit()
+
+    except Exception as e:
+        print(f"[DB ERROR] Failed to save sensor data: {e}")
+        raise HTTPException(status_code=500, detail=f"MySQL insert failed: {e}")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
 def process_sensor_data(data: dict) -> dict:
-    """Store sensor data, push to Blynk."""
+    """Store sensor data in memory, save to MySQL, push to Blynk."""
     global latest_sensor_data
 
     latest_sensor_data = data
-    entry = {**data, 'timestamp': datetime.now().strftime("%H:%M:%S")}
+    entry = {**data, "timestamp": datetime.now().strftime("%H:%M:%S")}
     sensor_history.append(entry)
 
+    # Save to MySQL
+    save_sensor_data_to_mysql(data)
+
+    # Push to Blynk
     blynk_ok = blynk_client.send_sensor_data(data)
 
     ts = datetime.now().strftime("%H:%M:%S")
@@ -135,7 +179,7 @@ def get_status():
 # ══════════════════════════════════════════════════════════════
 @app.get("/sensors/fake")
 def read_fake_sensors():
-    """Read fake sensors, push to Blynk."""
+    """Read fake sensors, save to MySQL, push to Blynk."""
     try:
         from fake_sensors import read_all
         data = read_all()
@@ -147,7 +191,7 @@ def read_fake_sensors():
 @app.post("/sensors/data")
 def receive_sensor_data(sensor_data: SensorData):
     """Receive real sensor data from Raspberry Pi."""
-    data = sensor_data.dict(exclude_none=True)
+    data = sensor_data.model_dump(exclude_none=True)
     if not data:
         raise HTTPException(status_code=400, detail="No sensor data provided")
     return process_sensor_data(data)
@@ -155,9 +199,66 @@ def receive_sensor_data(sensor_data: SensorData):
 
 @app.get("/sensors/history")
 def get_sensor_history(limit: int = 20):
-    """Recent sensor readings."""
+    """Recent sensor readings from memory."""
     history = list(sensor_history)
     return {"count": len(history), "data": history[-limit:]}
+
+
+@app.get("/sensors/latest-db")
+def get_latest_db():
+    """Get latest sensor reading from MySQL."""
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT * FROM sensor_data
+            ORDER BY id DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+
+        return row if row else {"message": "no data"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"MySQL query failed: {e}")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.get("/sensors/history-db")
+def get_history_db(limit: int = 20):
+    """Get recent sensor readings from MySQL."""
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT * FROM sensor_data
+            ORDER BY id DESC
+            LIMIT %s
+        """, (limit,))
+        rows = cursor.fetchall()
+
+        rows.reverse()
+        return {"count": len(rows), "data": rows}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"MySQL query failed: {e}")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -172,13 +273,15 @@ def ai_room_check(sensor_data: Optional[SensorData] = None):
     """
     global latest_room_check
 
-    # Use provided data or latest stored data
     data = latest_sensor_data
     if sensor_data:
-        data = sensor_data.dict(exclude_none=True)
+        data = sensor_data.model_dump(exclude_none=True)
 
     if not data:
-        raise HTTPException(status_code=400, detail="No sensor data available. Call /sensors/fake or POST /sensors/data first.")
+        raise HTTPException(
+            status_code=400,
+            detail="No sensor data available. Call /sensors/fake or POST /sensors/data first."
+        )
     if not gemini_sleep.is_available():
         raise HTTPException(status_code=503, detail="Gemini AI not configured")
 
@@ -192,7 +295,6 @@ def ai_room_check(sensor_data: Optional[SensorData] = None):
     blynk_client.update_pin(blynk_client.PINS['sleep_score'], result['score'])
     blynk_client.update_pin(blynk_client.PINS['ai_advice'], result['advice'])
 
-    # Color the gauge
     score = result['score']
     if score >= 80:
         blynk_client.update_property(blynk_client.PINS['sleep_score'], 'color', '#4CAF50')
@@ -219,7 +321,10 @@ def ai_morning_report():
 
     history = list(sensor_history)
     if len(history) < 3:
-        raise HTTPException(status_code=400, detail="Not enough data for a report. Need at least 3 readings.")
+        raise HTTPException(
+            status_code=400,
+            detail="Not enough data for a report. Need at least 3 readings."
+        )
 
     print(f"[{datetime.now().strftime('%H:%M:%S')}] AI Morning Report...")
 
@@ -227,7 +332,6 @@ def ai_morning_report():
     if not result:
         raise HTTPException(status_code=500, detail="AI report generation failed")
 
-    # Push to Blynk V10
     report_text = f"Score: {result['score']}/100 | {result['summary']} | Tip: {result['tips']}"
     blynk_client.update_pin(blynk_client.PINS['morning_rpt'], report_text)
 
