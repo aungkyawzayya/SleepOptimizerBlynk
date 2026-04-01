@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Sleep Optimizer API",
-    version="1.1.0",
+    version="1.2.0",
     lifespan=lifespan,
 )
 
@@ -99,6 +99,7 @@ def save_sensor_data_to_mysql(data: dict) -> None:
     conn = None
     cursor = None
     try:
+        print("[DB] connecting...", flush=True)
         conn = get_connection()
         cursor = conn.cursor()
 
@@ -118,11 +119,13 @@ def save_sensor_data_to_mysql(data: dict) -> None:
             data.get("motion"),
         )
 
+        print(f"[DB] inserting: {values}", flush=True)
         cursor.execute(sql, values)
         conn.commit()
+        print("[DB] insert success", flush=True)
 
     except Exception as e:
-        print(f"[DB ERROR] Failed to save sensor data: {e}")
+        print(f"[DB ERROR] Failed to save sensor data: {e}", flush=True)
         raise HTTPException(status_code=500, detail=f"MySQL insert failed: {e}")
 
     finally:
@@ -144,13 +147,24 @@ def process_sensor_data(data: dict) -> dict:
     save_sensor_data_to_mysql(data)
 
     # Push to Blynk
-    blynk_ok = blynk_client.send_sensor_data(data)
+    blynk_ok = False
+    try:
+        blynk_ok = blynk_client.send_sensor_data(data)
+    except Exception as e:
+        print(f"[BLYNK ERROR] {e}", flush=True)
 
     ts = datetime.now().strftime("%H:%M:%S")
-    status = "OK" if blynk_ok else "FAIL"
-    print(f"[{ts}] [{status}] {data}")
+    if blynk_ok:
+        print(f"[{ts}] [SUCCESS + BLYNK OK] {data}", flush=True)
+    else:
+        print(f"[{ts}] [SUCCESS + BLYNK FAILED] {data}", flush=True)
 
-    return {"status": status, "data": data}
+    return {
+        "status": "success",
+        "message": "Sensor data received and saved to MySQL successfully",
+        "blynk_status": "ok" if blynk_ok else "failed",
+        "data": data
+    }
 
 
 # ══════════════════════════════════════════════════════════════
@@ -285,26 +299,29 @@ def ai_room_check(sensor_data: Optional[SensorData] = None):
     if not gemini_sleep.is_available():
         raise HTTPException(status_code=503, detail="Gemini AI not configured")
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] AI Room Check...")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] AI Room Check...", flush=True)
 
     result = gemini_sleep.room_check(data)
     if not result:
         raise HTTPException(status_code=500, detail="AI analysis failed")
 
     # Push to Blynk
-    blynk_client.update_pin(blynk_client.PINS['sleep_score'], result['score'])
-    blynk_client.update_pin(blynk_client.PINS['ai_advice'], result['advice'])
+    try:
+        blynk_client.update_pin(blynk_client.PINS['sleep_score'], result['score'])
+        blynk_client.update_pin(blynk_client.PINS['ai_advice'], result['advice'])
 
-    score = result['score']
-    if score >= 80:
-        blynk_client.update_property(blynk_client.PINS['sleep_score'], 'color', '#4CAF50')
-    elif score >= 50:
-        blynk_client.update_property(blynk_client.PINS['sleep_score'], 'color', '#FF9800')
-    else:
-        blynk_client.update_property(blynk_client.PINS['sleep_score'], 'color', '#F44336')
+        score = result['score']
+        if score >= 80:
+            blynk_client.update_property(blynk_client.PINS['sleep_score'], 'color', '#4CAF50')
+        elif score >= 50:
+            blynk_client.update_property(blynk_client.PINS['sleep_score'], 'color', '#FF9800')
+        else:
+            blynk_client.update_property(blynk_client.PINS['sleep_score'], 'color', '#F44336')
+    except Exception as e:
+        print(f"[BLYNK AI ERROR] {e}", flush=True)
 
     latest_room_check = result
-    print(f"  Score: {result['score']}/100 | Advice: {result['advice']}")
+    print(f"  Score: {result['score']}/100 | Advice: {result['advice']}", flush=True)
 
     return result
 
@@ -326,17 +343,20 @@ def ai_morning_report():
             detail="Not enough data for a report. Need at least 3 readings."
         )
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] AI Morning Report...")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] AI Morning Report...", flush=True)
 
     result = gemini_sleep.morning_report(history)
     if not result:
         raise HTTPException(status_code=500, detail="AI report generation failed")
 
-    report_text = f"Score: {result['score']}/100 | {result['summary']} | Tip: {result['tips']}"
-    blynk_client.update_pin(blynk_client.PINS['morning_rpt'], report_text)
+    try:
+        report_text = f"Score: {result['score']}/100 | {result['summary']} | Tip: {result['tips']}"
+        blynk_client.update_pin(blynk_client.PINS['morning_rpt'], report_text)
+    except Exception as e:
+        print(f"[BLYNK REPORT ERROR] {e}", flush=True)
 
-    print(f"  Score: {result['score']}/100")
-    print(f"  Summary: {result['summary']}")
-    print(f"  Tips: {result['tips']}")
+    print(f"  Score: {result['score']}/100", flush=True)
+    print(f"  Summary: {result['summary']}", flush=True)
+    print(f"  Tips: {result['tips']}", flush=True)
 
     return result

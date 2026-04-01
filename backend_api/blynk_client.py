@@ -1,78 +1,119 @@
 """
 Sleep Optimizer — Blynk HTTPS API Client
-==========================================
-Handles all communication with Blynk Cloud via HTTPS API.
+========================================
+Handles communication with Blynk Cloud via HTTPS API.
+Safer version for debugging and partial sensor payloads.
 """
 
 import os
 import urllib.request
 import urllib.parse
 
-
-BLYNK_AUTH = os.getenv("BLYNK_AUTH_TOKEN", "")
-BLYNK_SERVER = os.getenv("BLYNK_SERVER", "ny3.blynk.cloud")
+BLYNK_AUTH = os.getenv("BLYNK_AUTH_TOKEN", "").strip()
+BLYNK_SERVER = os.getenv("BLYNK_SERVER", "ny3.blynk.cloud").strip()
 BLYNK_BASE_URL = f"https://{BLYNK_SERVER}/external/api"
 
-# ── Virtual Pin Mapping ─────────────────────────────────────
+# Only keep pins you really use now
 PINS = {
-    'temperature': 0,   # V0
-    'humidity':    1,   # V1
-    'co2':         2,   # V2
-    'sound':       3,   # V3
-    'light':       4,   # V4
-    'dust':        5,   # V5
-    'motion':      6,   # V6
-    'body_temp':   7,   # V7 (reserved)
-    'sleep_score': 8,   # V8
-    'ai_advice':   9,   # V9
-    'morning_rpt': 10,  # V10
+    "temperature": 0,   # V0
+    "humidity":    1,   # V1
+    "co2":         2,   # V2
+    "sound":       3,   # V3
+    "light":       4,   # V4
+    "dust":        5,   # V5
+    "motion":      6,   # V6
+    "sleep_score": 8,   # V8
+    "ai_advice":   9,   # V9
+    "morning_rpt": 10,  # V10
 }
 
 
-def update_pin(pin: int, value):
-    """Update a single Blynk virtual pin."""
+def _has_auth() -> bool:
+    return bool(BLYNK_AUTH)
+
+
+def update_pin(pin: int, value) -> bool:
+    """Update one Blynk virtual pin."""
+    if not _has_auth():
+        print("[BLYNK] Missing BLYNK_AUTH_TOKEN")
+        return False
+
+    if value is None:
+        print(f"[BLYNK] Skip V{pin}: value is None")
+        return True
+
     url = f"{BLYNK_BASE_URL}/update?token={BLYNK_AUTH}&V{pin}={urllib.parse.quote(str(value))}"
+    print(f"[BLYNK] Sending V{pin} = {value}")
+
     try:
-        urllib.request.urlopen(url, timeout=5)
+        with urllib.request.urlopen(url, timeout=5) as response:
+            print(f"[BLYNK] V{pin} OK (HTTP {response.status})")
         return True
     except Exception as e:
-        print(f"  Blynk write error V{pin}: {e}")
+        print(f"[BLYNK] V{pin} FAILED: {e}")
         return False
 
 
-def update_pins(pin_values: dict):
-    """Update multiple pins — one request per pin."""
-    success = True
+def update_pins(pin_values: dict) -> bool:
+    """Update multiple pins one by one."""
+    overall_success = True
+
     for pin, value in pin_values.items():
-        if not update_pin(pin, value):
-            success = False
-    return success
+        ok = update_pin(pin, value)
+        if not ok:
+            overall_success = False
+
+    return overall_success
 
 
-def send_sensor_data(data: dict):
-    """Send sensor data dict to Blynk using pin mapping."""
+def send_sensor_data(data: dict) -> bool:
+    """
+    Send known sensor fields to Blynk.
+    Ignores keys not in PINS.
+    """
     pin_values = {}
+
     for key, pin in PINS.items():
-        if key in data:
+        if key in data and data[key] is not None:
             pin_values[pin] = data[key]
+
+    if not pin_values:
+        print("[BLYNK] No matching sensor fields to send")
+        return True
+
+    print(f"[BLYNK] Prepared pin payload: {pin_values}")
     return update_pins(pin_values)
 
 
-def update_property(pin: int, prop: str, value: str):
-    """Update a widget property (e.g., color)."""
+def update_property(pin: int, prop: str, value: str) -> bool:
+    """Update widget property, e.g. gauge color."""
+    if not _has_auth():
+        print("[BLYNK] Missing BLYNK_AUTH_TOKEN")
+        return False
+
     params = {"token": BLYNK_AUTH, "pin": f"V{pin}", prop: value}
     url = f"{BLYNK_BASE_URL}/update/property?{urllib.parse.urlencode(params)}"
+
     try:
-        urllib.request.urlopen(url, timeout=5)
-    except Exception:
-        pass
+        with urllib.request.urlopen(url, timeout=5) as response:
+            print(f"[BLYNK] Property update V{pin} {prop}={value} OK (HTTP {response.status})")
+        return True
+    except Exception as e:
+        print(f"[BLYNK] Property update V{pin} FAILED: {e}")
+        return False
 
 
-def check_connection():
+def check_connection() -> bool:
     """Check if Blynk API is reachable."""
+    if not _has_auth():
+        print("[BLYNK] Missing BLYNK_AUTH_TOKEN")
+        return False
+
     url = f"{BLYNK_BASE_URL}/isHardwareConnected?token={BLYNK_AUTH}"
     try:
-        r = urllib.request.urlopen(url, timeout=5)
-        return r.status == 200
-    except Exception:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            print(f"[BLYNK] Connection check OK (HTTP {response.status})")
+            return response.status == 200
+    except Exception as e:
+        print(f"[BLYNK] Connection check failed: {e}")
         return False
