@@ -1,0 +1,2 @@
+cd /Users/aungzayya/Desktop/SleepOptimizerBlynk/backend_api
+python3 run_fake.py
