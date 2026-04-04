@@ -14,7 +14,7 @@ import json
 import socket
 
 # Ensure no trailing slash
-API_URL = "http://136.119.125.251:8000".rstrip('/')
+API_URL = "http://136.119.125.251".rstrip('/')  # Port 80
 INTERVAL = 5  # seconds
 
 

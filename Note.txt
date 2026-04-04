@@ -1,2 +1,21 @@
 cd /Users/aungzayya/Desktop/SleepOptimizerBlynk/backend_api
 python3 run_fake.py
+
+
+Git Usage
+=========
+
+Pull (The Safety Step)
+----------------------
+git pull --rebase origin main
+
+
+Add and Commit
+--------------
+git add .
+git commit -m "Describe what you changed"
+
+Push
+-----
+git push origin main
+
