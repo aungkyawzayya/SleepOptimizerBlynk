@@ -7,14 +7,14 @@ import os
 
 # --- SENSOR IMPORTS ---
 try:
-    # Ensure these files exist in your 'sensors' folder on the Pi
     from sensors.temperature import read_temperature, setup_temperature
-    # Add other sensors as you implement them:
-    # from sensors.co2 import read_co2
+    from sensors.sound import read_sound, setup_sound
 except ImportError:
     print("Warning: Sensor modules not found. Using dummy values.")
     def read_temperature(): return 25.0
     def setup_temperature(): return True
+    def read_sound(): return 0.0
+    def setup_sound(): return True
 
 # --- CONFIGURATION ---
 # IMPORTANT: Updated to Port 8001 to match your VM
@@ -31,7 +31,7 @@ def get_all_sensor_payload():
         "temperature": round(temp, 2) if temp is not None else 0.0,
         "humidity": 55.0,  # Replace with actual read_humidity()
         "co2": 450,        # Replace with actual read_co2()
-        "sound": 32.1,     # Replace with actual read_sound()
+        "sound": read_sound(),
         "light": 180,      # Replace with actual read_light()
         "dust": 0.02,      # Replace with actual read_dust()
         "motion": 0        # Replace with actual read_motion()
@@ -63,6 +63,7 @@ def main():
     print("--- Raspberry Pi Sensor Collector Started ---")
     print(f"Targeting Server: {DATA_ENDPOINT}")
     setup_temperature()
+    setup_sound()
 
     while True:
         try:
