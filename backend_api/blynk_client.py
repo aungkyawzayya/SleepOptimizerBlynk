@@ -6,6 +6,7 @@ Safer version for debugging and partial sensor payloads.
 """
 
 import os
+import json
 import urllib.request
 import urllib.parse
 
@@ -25,6 +26,8 @@ PINS = {
     "sleep_score": 8,   # V8
     "ai_advice":   9,   # V9
     "morning_rpt": 10,  # V10
+    "interval":    13,  # V13 — reading interval (seconds)
+    "power":       12,  # V12 — system power on/off
 }
 
 
@@ -101,6 +104,20 @@ def update_property(pin: int, prop: str, value: str) -> bool:
     except Exception as e:
         print(f"[BLYNK] Property update V{pin} FAILED: {e}")
         return False
+
+
+def get_pin(pin: int):
+    """Read a virtual pin value from Blynk."""
+    if not _has_auth():
+        return None
+    url = f"{BLYNK_BASE_URL}/get?token={BLYNK_AUTH}&V{pin}"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            return data[0] if data else None
+    except Exception as e:
+        print(f"[BLYNK] Get V{pin} FAILED: {e}")
+        return None
 
 
 def check_connection() -> bool:
