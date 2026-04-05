@@ -17,10 +17,23 @@ except ImportError:
     def setup_sound(): return True
 
 # --- CONFIGURATION ---
-# IMPORTANT: Updated to Port 8001 to match your VM
 API_URL = "http://136.119.125.251"  # Port 80 — avoids iPhone hotspot port blocking
-DATA_ENDPOINT = f"{API_URL}/sensors/data"
-INTERVAL = 5 
+DATA_ENDPOINT     = f"{API_URL}/sensors/data"
+SETTINGS_ENDPOINT = f"{API_URL}/settings"
+DEFAULT_INTERVAL  = 5   # seconds fallback if Blynk unreachable
+SETTINGS_REFRESH  = 10  # how many loops before re-fetching settings
+
+def get_settings():
+    """Fetch power and interval settings from the backend (which reads from Blynk)"""
+    try:
+        req = urllib.request.Request(SETTINGS_ENDPOINT, method="GET")
+        proxy_handler = urllib.request.ProxyHandler({})
+        opener = urllib.request.build_opener(proxy_handler)
+        with opener.open(req, timeout=5) as response:
+            return json.loads(response.read().decode())
+    except Exception as e:
+        print(f"Settings fetch error: {e} — using defaults")
+        return {"power": 1, "interval": DEFAULT_INTERVAL}
 
 def get_all_sensor_payload():
     """Collects data from all connected sensors"""
@@ -65,11 +78,28 @@ def main():
     setup_temperature()
     setup_sound()
 
+    loop_count = 0
+    interval   = DEFAULT_INTERVAL
+    power      = 1  # assume on by default
+
     while True:
         try:
+            # Refresh settings from Blynk every SETTINGS_REFRESH loops
+            if loop_count % SETTINGS_REFRESH == 0:
+                settings = get_settings()
+                power    = settings.get("power", 1)
+                interval = settings.get("interval", DEFAULT_INTERVAL)
+                print(f"[Settings] Power={'ON' if power else 'OFF'} | Interval={interval}s")
+
+            if not power:
+                print(f"[{time.strftime('%H:%M:%S')}] System OFF — waiting...")
+                time.sleep(interval)
+                loop_count += 1
+                continue
+
             payload = get_all_sensor_payload()
-            result = send_to_fastapi(payload)
-            
+            result  = send_to_fastapi(payload)
+
             if result:
                 timestamp = time.strftime('%H:%M:%S')
                 status = result.get('status', 'unknown')
@@ -80,7 +110,8 @@ def main():
         except Exception as e:
             print(f"Loop Error: {e}")
 
-        time.sleep(INTERVAL)
+        loop_count += 1
+        time.sleep(interval)
 
 if __name__ == "__main__":
     try:

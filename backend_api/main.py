@@ -172,6 +172,21 @@ def morning_report():
         blynk_client.update_pin(blynk_client.PINS['morning_rpt'], report_msg)
     return result
 
+@app.get("/settings")
+def get_settings():
+    """Returns current power and interval settings from Blynk for the Pi to poll"""
+    power_raw    = blynk_client.get_pin(blynk_client.PINS['power'])
+    interval_raw = blynk_client.get_pin(blynk_client.PINS['interval'])
+
+    power    = int(float(power_raw))    if power_raw    is not None else 1
+    interval = int(float(interval_raw)) if interval_raw is not None else 5
+    interval = max(5, min(300, interval))  # clamp between 5s and 300s
+
+    return {
+        "power":    power,
+        "interval": interval
+    }
+
 @app.get("/status")
 def server_status():
     """Health check endpoint providing uptime and current state"""
