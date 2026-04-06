@@ -1,3 +1,4 @@
+import asyncio
 import time
 from datetime import datetime
 from collections import deque
@@ -38,6 +39,29 @@ start_time: float = time.time()
 # ══════════════════════════════════════════════════════════════
 # Lifecycle Management (Startup/Shutdown)
 # ══════════════════════════════════════════════════════════════
+async def _poll_morning_trigger():
+    """Background task: checks V14 every 5 s and generates the morning report when the button is pressed."""
+    while True:
+        try:
+            val = blynk_client.get_pin(blynk_client.PINS['morning_trigger'])
+            if val is not None and int(float(val)) == 1:
+                print("[TRIGGER] Morning Report button pressed — generating report...")
+                # Reset pin immediately so a second press works
+                blynk_client.update_pin(blynk_client.PINS['morning_trigger'], 0)
+                if len(sensor_history) >= 5:
+                    result = gemini_sleep.morning_report(list(sensor_history))
+                    if result:
+                        report_msg = f"Score: {result['score']} | Summary: {result['summary']}"
+                        blynk_client.update_pin(blynk_client.PINS['morning_rpt'], report_msg)
+                        print("[TRIGGER] Morning report sent to Blynk V10")
+                else:
+                    blynk_client.update_pin(blynk_client.PINS['morning_rpt'],
+                                            "Not enough data yet — keep monitoring!")
+        except Exception as e:
+            print(f"[TRIGGER ERROR] {e}")
+        await asyncio.sleep(5)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("=" * 50)
@@ -48,13 +72,15 @@ async def lifespan(app: FastAPI):
         # Check connections on startup
         if blynk_client.check_connection():
             print("[OK] Blynk: Connected")
-        
+
         if gemini_sleep.init_gemini():
             print("[OK] Gemini AI: Ready")
     except Exception as e:
         print(f"[STARTUP ERROR] Initialization failed: {e}")
-    
+
+    trigger_task = asyncio.create_task(_poll_morning_trigger())
     yield
+    trigger_task.cancel()
     print("Shutting down server...")
 
 app = FastAPI(title="Sleep Optimizer API", version="1.5.0", lifespan=lifespan)

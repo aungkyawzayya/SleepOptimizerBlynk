@@ -26,8 +26,9 @@ PINS = {
     "sleep_score": 8,   # V8
     "ai_advice":   9,   # V9
     "morning_rpt": 10,  # V10
-    "interval":    13,  # V13 — reading interval (seconds)
-    "power":       12,  # V12 — system power on/off
+    "interval":         13,  # V13 — reading interval (seconds)
+    "power":            12,  # V12 — system power on/off
+    "morning_trigger":  14,  # V14 — button to generate morning report on demand
 }
 
 
