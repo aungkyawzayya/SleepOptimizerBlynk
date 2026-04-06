@@ -39,6 +39,11 @@ git add .
 git commit -m "Your message here"
 git push origin main
 
+# On the VM
+------------
+cd ~/sleep_api
+git pull origin main
+
 
 Git Usage
 =========
