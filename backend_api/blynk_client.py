@@ -29,6 +29,7 @@ PINS = {
     "interval":         13,  # V13 — reading interval (seconds)
     "power":            12,  # V12 — system power on/off
     "morning_trigger":  14,  # V14 — button to generate morning report on demand
+    "data_source":      15,  # V15 — 0 = Raspberry Pi | 1 = Fake API
 }
 
 
