@@ -1,75 +1,47 @@
 How To Run — All Terminals
 ==========================
 
-Connect from Mac to Pi
-----------------------
+#Connect from Mac to Pi
+#----------------------
 ssh rpi@172.20.10.4
 
+#Clear Git's proxy settings
+#---------------------------
+git config --global --unset http.proxy
+git config --global --unset https.proxy
 
-MacBook — Run Fake Sensor Loop
--------------------------------
-cd /Users/aungzayya/Desktop/SleepOptimizerBlynk/backend_api
-python3 run_fake.py
+#Clear the system environment proxy variables
+#---------------------------------------------
+unset http_proxy
+unset https_proxy
 
+#Git pull in Pi
+#--------------
+cd ~/Desktop/raspberry_pi
+git -c http.proxy= pull origin main
 
-VM (Google Cloud) — Start Backend Server
------------------------------------------
+#how to run in PI
+#----------------
+cd ~/Desktop/raspberry_pi
+sudo PYTHONPATH=. python3 main.py
+
+======================================
+
+#Git pull in VM
+#-----------------
+cd ~/sleep_api
+git pull origin main
+
+#VM (Google Cloud) — Start Backend Server
+#-----------------------------------------
 cd ~/sleep_api
 sudo python3 -m uvicorn main:app --host 0.0.0.0 --port 80
 
+==========================================================
 
-Raspberry Pi — Run Real Sensor Collector
------------------------------------------
-cd ~/SleepOptimizerBlynk
-git pull origin main
-cp raspberry_pi/main.py ~/Desktop/raspberry_pi/main.py
-cd ~/Desktop/raspberry_pi
-python3 main.py
-
-cd ~/SleepOptimizerBlynk && git pull origin main
-cp raspberry_pi/main.py ~/Desktop/raspberry_pi/main.py
-cp raspberry_pi/sensors/sound.py ~/Desktop/raspberry_pi/sensors/sound.py
-cd ~/Desktop/raspberry_pi && python3 main.py
-
-
-MacBook — Push Code Updates to GitHub
---------------------------------------
+#MacBook — Push Code Updates to GitHub
+#--------------------------------------
 cd /Users/aungzayya/Desktop/SleepOptimizerBlynk
 git add .
 git commit -m "Your message here"
 git push origin main
-
-# On the VM
-------------
-cd ~/sleep_api
-git pull origin main
-
-#Re Launch sleep_api
-====================
-# 1. Enter the folder where the backend code lives
-cd ~/sleep_api/backend_api
-
-# 2. Kill any old server process to free up Port 80
-sudo fuser -k 80/tcp
-
-# 3. Start the server with the local path enabled
-sudo PYTHONPATH=. python3 -m uvicorn main:app --host 0.0.0.0 --port 80
-
-
-Git Usage
-=========
-
-Pull (The Safety Step)
-----------------------
-git pull --rebase origin main
-
-
-Add and Commit
---------------
-git add .
-git commit -m "Describe what you changed"
-
-Push
------
-git push origin main
-
