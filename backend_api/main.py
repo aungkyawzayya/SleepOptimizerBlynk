@@ -75,6 +75,8 @@ async def lifespan(app: FastAPI):
     try:
         if blynk_client.check_connection():
             print("[OK] Blynk: Connected")
+            # Clear stale morning report from previous session
+            blynk_client.update_pin(blynk_client.PINS['morning_rpt'], " ")
         if gemini_sleep.init_gemini():
             print("[OK] Gemini AI: Ready")
     except Exception as e:
@@ -104,6 +106,8 @@ def home():
 @app.post("/sensors/data")
 def receive_data(sensor_data: SensorData):
     """Raspberry Pi posts real-time sensor data here."""
+    if not sensors.power_on:
+        raise HTTPException(status_code=503, detail="Power is OFF — data rejected")
     data = sensor_data.model_dump(exclude_none=True)
     if not data:
         raise HTTPException(status_code=400, detail="Empty data received")
@@ -149,19 +153,12 @@ def morning_report_endpoint():
 def get_settings():
     """
     Raspberry Pi polls this for power and interval settings.
-    Returns power=0 when in Fake mode so the Pi stays idle.
+    Power reflects the Blynk button state regardless of mode.
     """
-    if sensors.is_fake():
-        return {"power": 0, "interval": 5, "note": "Fake mode — Pi commands disabled"}
-
-    power_raw    = blynk_client.get_pin(blynk_client.PINS['power'])
     interval_raw = blynk_client.get_pin(blynk_client.PINS['interval'])
-
-    power    = int(float(power_raw))    if power_raw    is not None else 1
     interval = int(float(interval_raw)) if interval_raw is not None else 5
     interval = max(5, min(300, interval))  # clamp 5 – 300 s
-
-    return {"power": power, "interval": interval}
+    return {"power": 1 if sensors.power_on else 0, "interval": interval}
 
 
 @app.get("/status")
