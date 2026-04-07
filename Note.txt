@@ -44,6 +44,17 @@ git push origin main
 cd ~/sleep_api
 git pull origin main
 
+#Re Launch sleep_api
+====================
+# 1. Enter the folder where the backend code lives
+cd ~/sleep_api/backend_api
+
+# 2. Kill any old server process to free up Port 80
+sudo fuser -k 80/tcp
+
+# 3. Start the server with the local path enabled
+sudo PYTHONPATH=. python3 -m uvicorn main:app --host 0.0.0.0 --port 80
+
 
 Git Usage
 =========
