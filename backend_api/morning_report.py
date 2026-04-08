@@ -61,14 +61,17 @@ class MorningReport:
             get_history_fn: Zero-arg callable that returns the current
                             history list (e.g. lambda: list(sensors.history))
         """
+        def _poll_and_gen():
+            val = blynk_client.get_pin(blynk_client.PINS['morning_trigger'])
+            if val is not None and int(float(val)) == 1:
+                print("[MORNING REPORT] Button pressed — generating…")
+                # Reset pin immediately so a second press works
+                blynk_client.update_pin(blynk_client.PINS['morning_trigger'], 0)
+                self.generate(get_history_fn())
+
         while True:
             try:
-                val = blynk_client.get_pin(blynk_client.PINS['morning_trigger'])
-                if val is not None and int(float(val)) == 1:
-                    print("[MORNING REPORT] Button pressed — generating…")
-                    # Reset pin immediately so a second press works
-                    blynk_client.update_pin(blynk_client.PINS['morning_trigger'], 0)
-                    self.generate(get_history_fn())
+                await asyncio.to_thread(_poll_and_gen)
             except Exception as e:
                 print(f"[MORNING REPORT ERROR] {e}")
 

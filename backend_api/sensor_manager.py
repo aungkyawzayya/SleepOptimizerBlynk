@@ -98,15 +98,18 @@ class SensorManager:
         MODE_POLL_INTERVAL seconds. Switches state automatically
         when either Blynk widget changes.
         """
+        def _poll_blynk():
+            val = blynk_client.get_pin(blynk_client.PINS['data_source'])
+            if val is not None:
+                self.set_mode(int(float(val)))
+
+            pwr = blynk_client.get_pin(blynk_client.PINS['power'])
+            if pwr is not None:
+                self.set_power(bool(int(float(pwr))))
+
         while True:
             try:
-                val = blynk_client.get_pin(blynk_client.PINS['data_source'])
-                if val is not None:
-                    self.set_mode(int(float(val)))
-
-                pwr = blynk_client.get_pin(blynk_client.PINS['power'])
-                if pwr is not None:
-                    self.set_power(bool(int(float(pwr))))
+                await asyncio.to_thread(_poll_blynk)
             except Exception as e:
                 print(f"[POLL ERROR] {e}")
             await asyncio.sleep(self.MODE_POLL_INTERVAL)
@@ -122,7 +125,7 @@ class SensorManager:
             if self.is_fake() and self.power_on:
                 try:
                     data = read_all()
-                    self.process(data)
+                    await asyncio.to_thread(self.process, data)
                     print("[FAKE] Auto sensor tick")
                 except Exception as e:
                     print(f"[FAKE ERROR] {e}")
