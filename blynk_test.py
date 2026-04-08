@@ -58,6 +58,8 @@ VPIN_BODY_TEMP    = 7
 VPIN_SLEEP_SCORE  = 8
 VPIN_AI_ADVICE    = 9
 VPIN_MORNING_RPT  = 10
+VPIN_MORNING_TRIGGER = 14
+VPIN_ROOM_CHECK_TRIGGER = 16
 
 # ── Timing ──────────────────────────────────────────────────
 SENSOR_INTERVAL   = 5
@@ -88,6 +90,19 @@ def blynk_update_property(pin, prop, value):
         urllib.request.urlopen(url, timeout=5)
     except Exception:
         pass
+
+
+def blynk_get(pin):
+    """Fetch a pin value via Blynk HTTPS API."""
+    url = f"{BLYNK_BASE_URL}/get?token={BLYNK_AUTH}&V{pin}"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as r:
+            val = r.read().decode().strip()
+            # Blynk returns ["value"] or "value"
+            if val.startswith('['): val = val[1:-1].strip('"')
+            return val
+    except Exception:
+        return None
 
 
 def blynk_check():
@@ -214,6 +229,15 @@ def main():
                 last_ai_time = current_time
                 data = sensors.read_all()
                 run_ai_analysis(data)
+
+            # --- Check for Room Check Button (V16) ---
+            if ai_ready and (int(current_time) % 5 == 0): # Check every 5s roughly
+                val = blynk_get(VPIN_ROOM_CHECK_TRIGGER)
+                if val is not None and int(float(val)) == 1:
+                    print(f"[{timestamp()}] Button V16 Triggered!")
+                    blynk_update({VPIN_ROOM_CHECK_TRIGGER: 0}) # Reset
+                    data = sensors.read_all()
+                    run_ai_analysis(data)
 
             time.sleep(0.1)
 

@@ -78,14 +78,15 @@ async def lifespan(app: FastAPI):
             # Clear stale values from previous session
             blynk_client.update_pin(blynk_client.PINS['morning_rpt'], " ")
             blynk_client.update_property(blynk_client.PINS['power'], "label", "Power")
+            blynk_client.update_property(blynk_client.PINS['room_check_trigger'], "label", "Room Check AI")
         if gemini_sleep.init_gemini():
             print("[OK] Gemini AI: Ready")
     except Exception as e:
         print(f"[STARTUP ERROR] {e}")
 
-    # Three background tasks run for the lifetime of the server
     tasks = [
         asyncio.create_task(morning_rpt.poll_trigger(lambda: list(sensors.history))),
+        asyncio.create_task(ai_advice.poll_trigger(lambda: sensors.latest_data)),
         asyncio.create_task(sensors.poll_mode()),
         asyncio.create_task(sensors.fake_data_loop()),
     ]

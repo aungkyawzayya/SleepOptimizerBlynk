@@ -34,7 +34,8 @@ git pull origin main
 
 #VM (Google Cloud) — Start Backend Server
 #-----------------------------------------
-cd ~/sleep_api
+cd sleep_api
+cd backend_api
 sudo python3 -m uvicorn main:app --host 0.0.0.0 --port 80
 
 ==========================================================
