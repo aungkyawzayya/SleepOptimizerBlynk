@@ -39,6 +39,7 @@ class SensorManager:
     def __init__(self, max_history: int = 100):
         self.mode:        int   = self.MODE_PI
         self.power_on:    bool  = True
+        self.interval:    int   = self.FAKE_INTERVAL
         self.latest_data: dict  = {}
         self.history:     deque = deque(maxlen=max_history)
 
@@ -107,6 +108,10 @@ class SensorManager:
             if pwr is not None:
                 self.set_power(bool(int(float(pwr))))
 
+            interv = blynk_client.get_pin(blynk_client.PINS['interval'])
+            if interv is not None:
+                self.interval = max(5, min(300, int(float(interv))))
+
         while True:
             try:
                 await asyncio.to_thread(_poll_blynk)
@@ -126,7 +131,7 @@ class SensorManager:
                 try:
                     data = read_all()
                     await asyncio.to_thread(self.process, data)
-                    print("[FAKE] Auto sensor tick")
+                    print(f"[FAKE] Auto sensor tick (interval: {self.interval}s)")
                 except Exception as e:
                     print(f"[FAKE ERROR] {e}")
-            await asyncio.sleep(self.FAKE_INTERVAL)
+            await asyncio.sleep(self.interval)
