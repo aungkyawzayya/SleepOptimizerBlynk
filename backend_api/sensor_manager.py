@@ -167,10 +167,15 @@ class SensorManager:
 
         def _poll_and_reset():
             val = blynk_client.get_pin(blynk_client.PINS['reset_trigger'])
-            if val is not None and int(float(val)) == 1:
-                print("[RESET] Reset button pressed — clearing all data…")
-                blynk_client.update_pin(blynk_client.PINS['reset_trigger'], 0)
-                self.reset_data()
+            if val is not None:
+                try:
+                    # Safely handle empty strings or weird Blynk widget values
+                    if float(val) >= 1.0:
+                        print("[RESET] Reset button pressed — clearing all data…")
+                        blynk_client.update_pin(blynk_client.PINS['reset_trigger'], 0)
+                        self.reset_data()
+                except (ValueError, TypeError):
+                    pass
 
         while True:
             try:
