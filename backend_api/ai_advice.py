@@ -63,7 +63,11 @@ class AIAdvice:
                 print("[AI ADVICE] Room Check Button pressed — generating…")
                 # Reset pin immediately so a second press works
                 blynk_client.update_pin(blynk_client.PINS['room_check_trigger'], 0)
-                self.run(get_latest_data_fn())
+                data = get_latest_data_fn()
+                if not data:
+                    print("[AI ADVICE] No sensor data yet — skipping.")
+                    return
+                self.run(data)
 
         while True:
             try:

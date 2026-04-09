@@ -22,8 +22,11 @@ def check_connection() -> bool:
     url = f"{BLYNK_BASE_URL}/isHardwareConnected?token={BLYNK_AUTH}"
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
-            return response.status == 200
-    except: return False
+            body = response.read().decode().strip().lower()
+            return body == "true"
+    except Exception as e:
+        print(f"[BLYNK] check_connection error: {e}")
+        return False
 
 def get_pin(pin: int):
     if not _has_auth(): return None
@@ -32,7 +35,9 @@ def get_pin(pin: int):
         with urllib.request.urlopen(url, timeout=5) as response:
             data = json.loads(response.read().decode())
             return data[0] if isinstance(data, list) else data
-    except: return None
+    except Exception as e:
+        print(f"[BLYNK] get_pin(V{pin}) error: {e}")
+        return None
 
 def update_pin(pin: int, value) -> bool:
     if not _has_auth() or value is None: return False
@@ -40,7 +45,9 @@ def update_pin(pin: int, value) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
             return True
-    except: return False
+    except Exception as e:
+        print(f"[BLYNK] update_pin(V{pin}) error: {e}")
+        return False
 
 def send_sensor_data(data: dict) -> bool:
     """Maps dictionary keys to Blynk Pins and sends them."""
@@ -59,4 +66,6 @@ def update_property(pin: int, prop: str, value: str) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
             return True
-    except: return False
+    except Exception as e:
+        print(f"[BLYNK] update_property(V{pin}, {prop}) error: {e}")
+        return False

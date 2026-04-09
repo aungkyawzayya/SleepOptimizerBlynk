@@ -30,7 +30,7 @@ class SensorManager:
     MODE_PI   = 0
     MODE_FAKE = 1
 
-    FAKE_INTERVAL = 5   # seconds between fake sensor ticks
+    FAKE_INTERVAL = 5   # Initial interval (seconds); overridden at runtime by Blynk V13
     MODE_POLL_INTERVAL = 10  # seconds between V15 reads
 
     _COLOR_ACTIVE   = "#23C48E"  # Blynk green

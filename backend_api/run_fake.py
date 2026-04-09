@@ -58,7 +58,12 @@ def main():
             # Run AI room check every 60s (every 12th call)
             if count % 12 == 0:
                 print("  Running AI room check...")
-                req = urllib.request.Request(f"{API_URL}/ai/room-check", method='POST')
+                req = urllib.request.Request(
+                    f"{API_URL}/ai/room-check",
+                    data=b"{}",
+                    headers={"Content-Type": "application/json"},
+                    method='POST'
+                )
                 r = urllib.request.urlopen(req, timeout=10)
                 ai = json.loads(r.read().decode())
                 print(f"  Score: {ai.get('score', 'N/A')}/100 | {ai.get('advice', 'No advice')}")
