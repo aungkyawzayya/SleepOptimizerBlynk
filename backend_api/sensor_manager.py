@@ -134,10 +134,24 @@ class SensorManager:
         # Truncate DB
         db_ok = truncate_sensor_data()
 
-        # Reset Blynk display widgets
-        for pin_key in ("ai_advice", "morning_rpt", "sleep_score", "sleep_status"):
+        # Reset Blynk text/label widgets
+        for pin_key in ("ai_advice", "morning_rpt", "sleep_status"):
             try:
                 blynk_client.update_pin(blynk_client.PINS[pin_key], " ")
+            except Exception as e:
+                print(f"[RESET] Blynk clear failed for {pin_key}: {e}")
+
+        # Reset numeric gauge widgets to 0
+        for pin_key in ("sleep_score",):
+            try:
+                blynk_client.update_pin(blynk_client.PINS[pin_key], 0)
+            except Exception as e:
+                print(f"[RESET] Blynk clear failed for {pin_key}: {e}")
+
+        # Reset all sensor gauge pins (V0–V6)
+        for pin_key in ("temperature", "humidity", "co2", "sound", "light", "dust", "motion"):
+            try:
+                blynk_client.update_pin(blynk_client.PINS[pin_key], 0)
             except Exception as e:
                 print(f"[RESET] Blynk clear failed for {pin_key}: {e}")
 
