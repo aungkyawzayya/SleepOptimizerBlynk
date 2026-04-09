@@ -17,6 +17,7 @@ PINS = {
     "light": 4, "dust": 5, "motion": 6, "sleep_status": 7, "sleep_score": 8,
     "ai_advice": 9, "morning_rpt": 10, "interval": 13,
     "power": 12, "morning_trigger": 14, "data_source": 15, "room_check_trigger": 16,
+    "reset_trigger": 17,
 }
 
 def _has_auth() -> bool:

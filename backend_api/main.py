@@ -82,6 +82,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(ai_advice.poll_trigger(lambda: sensors.latest_data)),
         asyncio.create_task(sensors.poll_mode()),
         asyncio.create_task(sensors.fake_data_loop()),
+        asyncio.create_task(sensors.poll_reset_trigger()),
     ]
     yield
     for t in tasks:
@@ -154,6 +155,15 @@ def get_settings():
     interval = int(float(interval_raw)) if interval_raw is not None else 5
     interval = max(5, min(300, interval))  # clamp 5 – 300 s
     return {"power": 1 if sensors.power_on else 0, "interval": interval}
+
+
+@app.post("/data/reset")
+def reset_data():
+    """Reset all sensor history — clears in-memory deque, truncates MySQL, wipes Blynk widgets."""
+    ok = sensors.reset_data()
+    if not ok:
+        raise HTTPException(status_code=500, detail="DB truncate failed — in-memory history still cleared")
+    return {"status": "reset", "message": "All sensor data cleared successfully"}
 
 
 @app.get("/status")

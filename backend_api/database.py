@@ -16,6 +16,25 @@ def get_connection():
     )
 
 
+def truncate_sensor_data():
+    """Delete all rows from sensor_data table (full reset)."""
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("TRUNCATE TABLE sensor_data")
+        conn.commit()
+        cursor.close()
+        logger.info("[DB] sensor_data table truncated.")
+        return True
+    except Exception as e:
+        logger.error(f"[DB TRUNCATE ERROR] {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+
 def save_sensor_data(data: dict):
     """Persist a sensor reading to MySQL. Works for both Pi and Fake API modes."""
     conn = None
