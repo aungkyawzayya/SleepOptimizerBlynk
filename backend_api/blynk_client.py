@@ -1,7 +1,12 @@
 import os
 import json
+import logging
 import urllib.request
 import urllib.parse
+import urllib.error
+import socket
+
+logger = logging.getLogger(__name__)
 
 BLYNK_AUTH = os.getenv("BLYNK_AUTH_TOKEN", "").strip()
 BLYNK_SERVER = os.getenv("BLYNK_SERVER", "ny3.blynk.cloud").strip()
@@ -24,8 +29,8 @@ def check_connection() -> bool:
         with urllib.request.urlopen(url, timeout=5) as response:
             body = response.read().decode().strip().lower()
             return body == "true"
-    except Exception as e:
-        print(f"[BLYNK] check_connection error: {e}")
+    except (urllib.error.URLError, socket.timeout) as e:
+        logger.error(f"[BLYNK] check_connection error: {e}")
         return False
 
 def get_pin(pin: int):
@@ -35,8 +40,8 @@ def get_pin(pin: int):
         with urllib.request.urlopen(url, timeout=5) as response:
             data = json.loads(response.read().decode())
             return data[0] if isinstance(data, list) else data
-    except Exception as e:
-        print(f"[BLYNK] get_pin(V{pin}) error: {e}")
+    except (urllib.error.URLError, socket.timeout, json.JSONDecodeError) as e:
+        logger.error(f"[BLYNK] get_pin(V{pin}) error: {e}")
         return None
 
 def update_pin(pin: int, value) -> bool:
@@ -45,8 +50,8 @@ def update_pin(pin: int, value) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
             return True
-    except Exception as e:
-        print(f"[BLYNK] update_pin(V{pin}) error: {e}")
+    except (urllib.error.URLError, socket.timeout) as e:
+        logger.error(f"[BLYNK] update_pin(V{pin}) error: {e}")
         return False
 
 def send_sensor_data(data: dict) -> bool:
@@ -66,6 +71,6 @@ def update_property(pin: int, prop: str, value: str) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
             return True
-    except Exception as e:
-        print(f"[BLYNK] update_property(V{pin}, {prop}) error: {e}")
+    except (urllib.error.URLError, socket.timeout) as e:
+        logger.error(f"[BLYNK] update_property(V{pin}, {prop}) error: {e}")
         return False

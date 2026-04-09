@@ -18,6 +18,7 @@ import os
 import time
 import signal
 import sys
+import logging
 import urllib.request
 import urllib.parse
 from datetime import datetime
@@ -27,6 +28,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import fake_sensors as sensors
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Add file logging if LOG_FILE is set
+log_file = os.getenv("LOG_FILE")
+if log_file:
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(file_handler)
 
 # Try to import Gemini AI module (optional)
 try:
@@ -130,13 +143,13 @@ def run_ai_analysis(sensor_data):
     if not HAS_AI or not gemini_sleep.is_available():
         return
 
-    print(f"[{timestamp()}] Running AI analysis...")
+    logger.info(f"[{timestamp()}] Running AI analysis...")
     ai_pins = {}
 
     score = gemini_sleep.get_sleep_score(sensor_data)
     if score is not None:
         ai_pins[VPIN_SLEEP_SCORE] = score
-        print(f"  Sleep Score: {score}/100")
+        logger.info(f"  Sleep Score: {score}/100")
         if score >= 80:
             blynk_update_property(VPIN_SLEEP_SCORE, 'color', '#4CAF50')
         elif score >= 50:
@@ -147,7 +160,7 @@ def run_ai_analysis(sensor_data):
     advice = gemini_sleep.get_sleep_advice(sensor_data)
     if advice is not None:
         ai_pins[VPIN_AI_ADVICE] = advice
-        print(f"  AI Advice: {advice}")
+        logger.info(f"  AI Advice: {advice}")
 
     if ai_pins:
         blynk_update(ai_pins)
@@ -161,31 +174,31 @@ def run_ai_analysis(sensor_data):
 # Main Loop
 # ══════════════════════════════════════════════════════════════
 def main():
-    print("=" * 56)
-    print("  Sleep Optimizer — TEST MODE (Fake Sensors)")
-    print("  Using Blynk HTTPS API")
-    print("=" * 56)
-    print(f"  Server: {BLYNK_SERVER}")
+    logger.info("=" * 56)
+    logger.info("  Sleep Optimizer — TEST MODE (Fake Sensors)")
+    logger.info("  Using Blynk HTTPS API")
+    logger.info("=" * 56)
+    logger.info(f"  Server: {BLYNK_SERVER}")
 
     if blynk_check():
-        print("  Blynk: API reachable!")
+        logger.info("  Blynk: API reachable!")
     else:
-        print("  Blynk: API not reachable — check token/server")
+        logger.error("  Blynk: API not reachable — check token/server")
         sys.exit(1)
 
     ai_ready = False
     if HAS_AI:
         ai_ready = gemini_sleep.init_gemini()
         if ai_ready:
-            print("  AI: Gemini 2.5 Flash enabled")
+            logger.info("  AI: Gemini 2.5 Flash enabled")
         else:
-            print("  AI: Disabled (no GEMINI_API_KEY)")
+            logger.info("  AI: Disabled (no GEMINI_API_KEY)")
     else:
-        print("  AI: Module not found (sensors only)")
+        logger.info("  AI: Module not found (sensors only)")
 
-    print(f"  Sensor Interval: {SENSOR_INTERVAL}s")
-    print(f"  AI Interval: {AI_INTERVAL}s")
-    print("=" * 56)
+    logger.info(f"  Sensor Interval: {SENSOR_INTERVAL}s")
+    logger.info(f"  AI Interval: {AI_INTERVAL}s")
+    logger.info("=" * 56)
 
     last_sensor_time = 0
     last_ai_time = 0
@@ -213,7 +226,7 @@ def main():
                 recent_history.append(entry)
 
                 status = "OK" if success else "FAIL"
-                print(
+                logger.info(
                     f"[{timestamp()}] [{status}] "
                     f"Temp:{data['temperature']}°C "
                     f"Hum:{data['humidity']}% "
@@ -234,7 +247,7 @@ def main():
             if ai_ready and (int(current_time) % 5 == 0): # Check every 5s roughly
                 val = blynk_get(VPIN_ROOM_CHECK_TRIGGER)
                 if val is not None and int(float(val)) == 1:
-                    print(f"[{timestamp()}] Button V16 Triggered!")
+                    logger.info(f"[{timestamp()}] Button V16 Triggered!")
                     blynk_update({VPIN_ROOM_CHECK_TRIGGER: 0}) # Reset
                     data = sensors.read_all()
                     run_ai_analysis(data)
@@ -246,7 +259,7 @@ def main():
 
 
 def signal_handler(sig, frame):
-    print("\nShutting down...")
+    logger.info("Shutting down...")
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)

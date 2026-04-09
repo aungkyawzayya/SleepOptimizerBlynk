@@ -8,11 +8,14 @@ Two AI functions:
 
 import os
 import json
+import logging
 from datetime import datetime
 from typing import Optional
 
 from google import genai
 from google.genai import types
+
+logger = logging.getLogger(__name__)
 
 
 # ── Config ──────────────────────────────────────────────────
@@ -119,17 +122,34 @@ Respond with ONLY the JSON, no other text."""
 
         # Clean JSON from possible markdown code fences
         text = text.replace('```json', '').replace('```', '').strip()
-        result = json.loads(text)
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError as e:
+            logger.error(f"  Invalid JSON from Gemini: {e}")
+            return None
 
-        # Validate
-        score = int(result.get('score', 0))
-        score = max(0, min(100, score))
-        advice = str(result.get('advice', ''))[:120]
+        # Validate result is dict
+        if not isinstance(result, dict):
+            logger.error("  Gemini response is not a dict")
+            return None
+
+        # Validate fields
+        score = result.get('score')
+        if not isinstance(score, (int, float)) or not (0 <= score <= 100):
+            logger.error(f"  Invalid score: {score}")
+            return None
+        score = int(score)
+
+        advice = result.get('advice', '')
+        if not isinstance(advice, str):
+            logger.error(f"  Invalid advice: {advice}")
+            return None
+        advice = advice[:120]
 
         return {"score": score, "advice": advice}
 
     except Exception as e:
-        print(f"  Gemini room_check error: {e}")
+        logger.error(f"  Gemini room_check error: {e}")
         return None
 
 
@@ -196,19 +216,40 @@ Respond with ONLY the JSON, no other text."""
         )
         text = _extract_text(response)
         if not text:
-            print("  Gemini morning_report: no text in response")
+            logger.error("  Gemini morning_report: no text in response")
             return None
 
         text = text.replace('```json', '').replace('```', '').strip()
-        result = json.loads(text)
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError as e:
+            logger.error(f"  Invalid JSON from Gemini morning_report: {e}")
+            return None
 
-        score = int(result.get('score', 0))
-        score = max(0, min(100, score))
-        summary = str(result.get('summary', ''))
-        tips = str(result.get('tips', ''))
+        # Validate result is dict
+        if not isinstance(result, dict):
+            logger.error("  Gemini morning_report response is not a dict")
+            return None
+
+        # Validate fields
+        score = result.get('score')
+        if not isinstance(score, (int, float)) or not (0 <= score <= 100):
+            logger.error(f"  Invalid score in morning_report: {score}")
+            return None
+        score = int(score)
+
+        summary = result.get('summary', '')
+        if not isinstance(summary, str):
+            logger.error(f"  Invalid summary: {summary}")
+            return None
+
+        tips = result.get('tips', '')
+        if not isinstance(tips, str):
+            logger.error(f"  Invalid tips: {tips}")
+            return None
 
         return {"score": score, "summary": summary, "tips": tips}
 
     except Exception as e:
-        print(f"  Gemini morning_report error: {e}")
+        logger.error(f"  Gemini morning_report error: {e}")
         return None

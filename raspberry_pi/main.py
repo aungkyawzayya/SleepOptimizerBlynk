@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import time
 import json
+import logging
 import urllib.request
 import urllib.error
 import os
@@ -16,12 +17,24 @@ except ImportError:
     def read_sound(): return 0.0
     def setup_sound(): return True
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Add file logging if LOG_FILE is set
+log_file = os.getenv("LOG_FILE")
+if log_file:
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(file_handler)
+
 # --- CONFIGURATION ---
-API_URL = "http://136.119.125.251"  # Port 80 — avoids iPhone hotspot port blocking
+API_URL = os.getenv("API_URL", "http://136.119.125.251")  # Port 80 — avoids iPhone hotspot port blocking
 DATA_ENDPOINT     = f"{API_URL}/sensors/data"
 SETTINGS_ENDPOINT = f"{API_URL}/settings"
-DEFAULT_INTERVAL  = 5   # seconds fallback if Blynk unreachable
-SETTINGS_REFRESH  = 10  # how many loops before re-fetching settings
+DEFAULT_INTERVAL  = int(os.getenv("DEFAULT_INTERVAL", "5"))   # seconds fallback if Blynk unreachable
+SETTINGS_REFRESH  = int(os.getenv("SETTINGS_REFRESH", "10"))  # how many loops before re-fetching settings
 
 def get_settings():
     """Fetch power and interval settings from the backend (which reads from Blynk)"""
@@ -32,7 +45,7 @@ def get_settings():
         with opener.open(req, timeout=5) as response:
             return json.loads(response.read().decode())
     except Exception as e:
-        print(f"Settings fetch error: {e} — using defaults")
+        logger.error(f"Settings fetch error: {e} — using defaults")
         return {"power": 1, "interval": DEFAULT_INTERVAL}
 
 def get_all_sensor_payload():
@@ -73,8 +86,8 @@ def send_to_fastapi(payload):
         return None
 
 def main():
-    print("--- Raspberry Pi Sensor Collector Started ---")
-    print(f"Targeting Server: {DATA_ENDPOINT}")
+    logger.info("--- Raspberry Pi Sensor Collector Started ---")
+    logger.info(f"Targeting Server: {DATA_ENDPOINT}")
     setup_temperature()
     setup_sound()
 
@@ -89,10 +102,10 @@ def main():
                 settings = get_settings()
                 power    = settings.get("power", 1)
                 interval = settings.get("interval", DEFAULT_INTERVAL)
-                print(f"[Settings] Power={'ON' if power else 'OFF'} | Interval={interval}s")
+                logger.info(f"[Settings] Power={'ON' if power else 'OFF'} | Interval={interval}s")
 
             if not power:
-                print(f"[{time.strftime('%H:%M:%S')}] System OFF — waiting...")
+                logger.info(f"[{time.strftime('%H:%M:%S')}] System OFF — waiting...")
                 time.sleep(interval)
                 loop_count += 1
                 continue
@@ -103,12 +116,12 @@ def main():
             if result:
                 timestamp = time.strftime('%H:%M:%S')
                 status = result.get('status', 'unknown')
-                print(f"[{timestamp}] Sent: {payload['temperature']}°C | Server Status: {status}")
+                logger.info(f"[{timestamp}] Sent: {payload['temperature']}°C | Server Status: {status}")
             else:
-                print(f"[{time.strftime('%H:%M:%S')}] Failed to reach server at {API_URL}")
+                logger.error(f"[{time.strftime('%H:%M:%S')}] Failed to reach server at {API_URL}")
 
         except Exception as e:
-            print(f"Loop Error: {e}")
+            logger.error(f"Loop Error: {e}")
 
         loop_count += 1
         time.sleep(interval)
@@ -117,4 +130,4 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nCollector Stopped.")
+        logger.info("Collector Stopped.")

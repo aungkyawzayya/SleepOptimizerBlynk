@@ -12,10 +12,14 @@ import urllib.request
 import time
 import json
 import socket
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Ensure no trailing slash
-API_URL = "http://136.119.125.251".rstrip('/')  # Port 80
-INTERVAL = 5  # seconds
+API_URL = os.getenv("API_URL", "http://136.119.125.251").rstrip('/')  # Port 80
+INTERVAL = int(os.getenv("FAKE_INTERVAL", "5"))  # seconds
 
 
 def main():

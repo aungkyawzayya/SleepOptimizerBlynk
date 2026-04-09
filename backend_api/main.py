@@ -1,5 +1,7 @@
 import asyncio
 import time
+import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -16,6 +18,18 @@ import gemini_sleep
 from ai_advice import AIAdvice
 from morning_report import MorningReport
 from sensor_manager import SensorManager
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Add file logging if LOG_FILE is set
+log_file = os.getenv("LOG_FILE")
+if log_file:
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(file_handler)
 
 # ══════════════════════════════════════════════════════════════
 # Data Models
@@ -58,7 +72,7 @@ def save_to_db(data: dict):
         conn.commit()
         cursor.close()
     except Exception as e:
-        print(f"[DB ERROR] {e}")
+        logger.error(f"[DB ERROR] {e}")
     finally:
         if conn:
             conn.close()
@@ -68,13 +82,13 @@ def save_to_db(data: dict):
 # ══════════════════════════════════════════════════════════════
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("=" * 50)
-    print("  Sleep Optimizer — Backend Server Starting")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("  Sleep Optimizer — Backend Server Starting")
+    logger.info("=" * 50)
 
     try:
         if blynk_client.check_connection():
-            print("[OK] Blynk: Connected")
+            logger.info("[OK] Blynk: Connected")
             # Clear stale values from previous session
             blynk_client.update_pin(blynk_client.PINS['morning_rpt'], " ")
             blynk_client.update_pin(blynk_client.PINS['ai_advice'], " ")
@@ -82,9 +96,9 @@ async def lifespan(app: FastAPI):
             blynk_client.update_property(blynk_client.PINS['power'], "label", "Power")
             blynk_client.update_property(blynk_client.PINS['room_check_trigger'], "label", "Room Check AI")
         if gemini_sleep.init_gemini():
-            print("[OK] Gemini AI: Ready")
+            logger.info("[OK] Gemini AI: Ready")
     except Exception as e:
-        print(f"[STARTUP ERROR] {e}")
+        logger.error(f"[STARTUP ERROR] {e}")
 
     tasks = [
         asyncio.create_task(morning_rpt.poll_trigger(lambda: list(sensors.history))),
@@ -95,7 +109,7 @@ async def lifespan(app: FastAPI):
     yield
     for t in tasks:
         t.cancel()
-    print("Shutting down server...")
+    logger.info("Shutting down server...")
 
 app = FastAPI(title="Sleep Optimizer API", version="2.0.0", lifespan=lifespan)
 
