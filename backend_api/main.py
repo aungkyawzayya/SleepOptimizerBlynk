@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 # Internal modules
-from database import get_connection
+from database import save_sensor_data
 import blynk_client
 import gemini_sleep
 from ai_advice import AIAdvice
@@ -52,30 +52,7 @@ morning_rpt   = MorningReport()
 latest_check: dict = {}
 start_time    = time.time()
 
-# ══════════════════════════════════════════════════════════════
-# Helpers
-# ══════════════════════════════════════════════════════════════
-def save_to_db(data: dict):
-    """Persist a sensor reading to MySQL."""
-    conn = None
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO sensor_data "
-            "(temperature, humidity, co2, sound, light, dust, motion) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (data.get("temperature"), data.get("humidity"), data.get("co2"),
-             data.get("sound"),       data.get("light"),   data.get("dust"),
-             data.get("motion"))
-        )
-        conn.commit()
-        cursor.close()
-    except Exception as e:
-        logger.error(f"[DB ERROR] {e}")
-    finally:
-        if conn:
-            conn.close()
+# save_sensor_data is imported from database.py and shared across Pi + Fake modes
 
 # ══════════════════════════════════════════════════════════════
 # Lifecycle
@@ -129,14 +106,14 @@ def receive_data(sensor_data: SensorData):
     data = sensor_data.model_dump(exclude_none=True)
     if not data:
         raise HTTPException(status_code=400, detail="Empty data received")
-    return sensors.process(data, save_fn=save_to_db)
+    return sensors.process(data, save_fn=save_sensor_data)
 
 
 @app.get("/sensors/fake")
 def fake_data_trigger():
     """Manual fake-data trigger — useful for quick tests from MacBook."""
     from fake_sensors import read_all
-    return sensors.process(read_all())
+    return sensors.process(read_all(), save_fn=save_sensor_data)
 
 
 @app.post("/ai/room-check")

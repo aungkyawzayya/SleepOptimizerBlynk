@@ -42,6 +42,15 @@ class AIAdvice:
             color = "#4CAF50" if score >= 80 else "#FF9800" if score >= 50 else "#F44336"
             blynk_client.update_property(blynk_client.PINS['sleep_score'], "color", color)
 
+            # Dynamic Sleep Status banner (V7)
+            if score >= 80:
+                status = "🌙 Good Sleep Quality"
+            elif score >= 50:
+                status = "⚠️ Fair Sleep Conditions"
+            else:
+                status = "🔴 Poor Sleep Conditions"
+            blynk_client.update_pin(blynk_client.PINS['sleep_status'], status)
+
         except Exception as e:
             print(f"[AI ADVICE] Blynk update failed: {e}")
 

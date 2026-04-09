@@ -12,6 +12,7 @@ from datetime import datetime
 from collections import deque
 
 import blynk_client
+from database import save_sensor_data
 
 
 class SensorManager:
@@ -124,13 +125,14 @@ class SensorManager:
         Background task: auto-generate fake sensor readings every
         FAKE_INTERVAL seconds — but only when in Fake mode.
         Idles silently when in Pi mode.
+        Saves to DB so Environment History and Morning Report work correctly.
         """
         from fake_sensors import read_all
         while True:
             if self.is_fake() and self.power_on:
                 try:
                     data = read_all()
-                    await asyncio.to_thread(self.process, data)
+                    await asyncio.to_thread(self.process, data, save_sensor_data)
                     print(f"[FAKE] Auto sensor tick (interval: {self.interval}s)")
                 except Exception as e:
                     print(f"[FAKE ERROR] {e}")
