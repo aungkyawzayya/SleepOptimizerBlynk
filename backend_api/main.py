@@ -69,10 +69,9 @@ async def lifespan(app: FastAPI):
     try:
         if blynk_client.check_connection():
             logger.info("[OK] Blynk: Connected")
-            # Clear stale values from previous session
-            blynk_client.update_pin(blynk_client.PINS['morning_rpt'], " ")
+            # Clear only transient values (AI advice refreshes automatically; keep morning report)
             blynk_client.update_pin(blynk_client.PINS['ai_advice'], " ")
-            blynk_client.update_pin(blynk_client.PINS['sleep_score'], " ")  # Optionally clearing score too
+            blynk_client.update_pin(blynk_client.PINS['sleep_score'], " ")
             blynk_client.update_property(blynk_client.PINS['power'], "label", "Power")
             blynk_client.update_property(blynk_client.PINS['room_check_trigger'], "label", "Room Check AI")
         if gemini_sleep.init_gemini():
