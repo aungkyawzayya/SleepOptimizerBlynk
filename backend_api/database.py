@@ -23,10 +23,10 @@ def truncate_sensor_data():
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("TRUNCATE TABLE sensor_data")
+        cursor.execute("DELETE FROM sensor_data")
         conn.commit()
         cursor.close()
-        logger.info("[DB] sensor_data table truncated.")
+        logger.info("[DB] sensor_data table cleared.")
         return True
     except Exception as e:
         logger.error(f"[DB TRUNCATE ERROR] {e}")
