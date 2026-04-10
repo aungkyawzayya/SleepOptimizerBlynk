@@ -2,10 +2,12 @@ import os
 import logging
 import mysql.connector
 from dotenv import load_dotenv
-load_dotenv()
+import os
+
+env_path = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(env_path)
 
 logger = logging.getLogger(__name__)
-
 
 def get_connection():
     return mysql.connector.connect(

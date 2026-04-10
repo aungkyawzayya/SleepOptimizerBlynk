@@ -120,44 +120,6 @@ class SensorManager:
                 print(f"[POLL ERROR] {e}")
             await asyncio.sleep(self.MODE_POLL_INTERVAL)
 
-    def reset_data(self) -> bool:
-        """
-        Clear in-memory history and truncate the MySQL sensor_data table.
-        Also wipes Blynk display pins so the dashboard reflects the reset.
-        """
-        from database import truncate_sensor_data
-
-        # Clear in-memory deque
-        self.history.clear()
-        self.latest_data = {}
-
-        # Truncate DB
-        db_ok = truncate_sensor_data()
-
-        # Reset Blynk text/label widgets
-        for pin_key in ("ai_advice", "morning_rpt", "sleep_status"):
-            try:
-                blynk_client.update_pin(blynk_client.PINS[pin_key], " ")
-            except Exception as e:
-                print(f"[RESET] Blynk clear failed for {pin_key}: {e}")
-
-        # Reset numeric gauge widgets to 0
-        for pin_key in ("sleep_score",):
-            try:
-                blynk_client.update_pin(blynk_client.PINS[pin_key], 0)
-            except Exception as e:
-                print(f"[RESET] Blynk clear failed for {pin_key}: {e}")
-
-        # Reset all sensor gauge pins (V0–V6)
-        for pin_key in ("temperature", "humidity", "co2", "sound", "light", "dust", "motion"):
-            try:
-                blynk_client.update_pin(blynk_client.PINS[pin_key], 0)
-            except Exception as e:
-                print(f"[RESET] Blynk clear failed for {pin_key}: {e}")
-
-        print(f"[RESET] Data cleared — DB truncate: {'OK' if db_ok else 'FAILED'}")
-        return db_ok
-
     async def poll_reset_trigger(self):
         """
         Background task: poll V17 every 5 seconds.
@@ -173,7 +135,8 @@ class SensorManager:
                     if float(val) >= 1.0:
                         print("[RESET] Reset button pressed — clearing all data…")
                         blynk_client.update_pin(blynk_client.PINS['reset_trigger'], 0)
-                        self.reset_data()
+                        from data_wiper import perform_wipe
+                        perform_wipe()
                 except (ValueError, TypeError):
                     pass
 

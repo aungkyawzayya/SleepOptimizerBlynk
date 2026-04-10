@@ -18,6 +18,7 @@ import gemini_sleep
 from ai_advice import AIAdvice
 from morning_report import MorningReport
 from sensor_manager import SensorManager
+import data_wiper
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -51,6 +52,8 @@ ai_advice     = AIAdvice()
 morning_rpt   = MorningReport()
 latest_check: dict = {}
 start_time    = time.time()
+
+data_wiper.init_wiper(sensors)
 
 # save_sensor_data is imported from database.py and shared across Pi + Fake modes
 
@@ -90,6 +93,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down server...")
 
 app = FastAPI(title="Sleep Optimizer API", version="2.0.0", lifespan=lifespan)
+app.include_router(data_wiper.router)
 
 # ══════════════════════════════════════════════════════════════
 # Endpoints
@@ -157,13 +161,6 @@ def get_settings():
     return {"power": 1 if sensors.power_on else 0, "interval": interval}
 
 
-@app.post("/data/reset")
-def reset_data():
-    """Reset all sensor history — clears in-memory deque, truncates MySQL, wipes Blynk widgets."""
-    ok = sensors.reset_data()
-    if not ok:
-        raise HTTPException(status_code=500, detail="DB truncate failed — in-memory history still cleared")
-    return {"status": "reset", "message": "All sensor data cleared successfully"}
 
 
 @app.get("/status")
