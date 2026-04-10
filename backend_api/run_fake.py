@@ -4,6 +4,11 @@ Fake Sensor Runner
 Calls the backend API every 5 seconds to simulate continuous sensor data.
 Run this while the FastAPI backend is running.
 
+WARNING: The backend already auto-generates fake data via SensorManager.fake_data_loop()
+when Blynk V15 is set to Fake mode. Running this script at the same time will double
+the data rate. Only use this script for one-off manual testing when the backend is in
+Pi mode or when you want to trigger /sensors/fake independently.
+
 Usage:
   python3 run_fake.py
 """

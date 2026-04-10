@@ -8,11 +8,14 @@ maintains sensor history, and runs background tasks for:
 """
 
 import asyncio
+import logging
 from datetime import datetime
 from collections import deque
 
 import blynk_client
 from database import save_sensor_data
+
+logger = logging.getLogger(__name__)
 
 
 class SensorManager:
@@ -55,20 +58,20 @@ class SensorManager:
             return
         self.mode = mode
         label = "Fake API" if mode == self.MODE_FAKE else "Raspberry Pi"
-        print(f"[MODE] Switched to: {label}")
+        logger.info(f"[MODE] Switched to: {label}")
 
     def set_power(self, on: bool):
         """Turn data collection on or off and sync the Blynk button colour."""
         if on == self.power_on:
             return
         self.power_on = on
-        print(f"[POWER] {'ON' if on else 'OFF'}")
+        logger.info(f"[POWER] {'ON' if on else 'OFF'}")
         try:
             color = self._COLOR_ACTIVE if on else self._COLOR_DISABLED
             blynk_client.update_property(
                 blynk_client.PINS['power'], "color", color)
         except Exception as e:
-            print(f"[POWER UI ERROR] {e}")
+            logger.error(f"[POWER UI ERROR] {e}")
 
     # ── Data processing ───────────────────────────────────────────
 
@@ -117,7 +120,7 @@ class SensorManager:
             try:
                 await asyncio.to_thread(_poll_blynk)
             except Exception as e:
-                print(f"[POLL ERROR] {e}")
+                logger.error(f"[POLL ERROR] {e}")
             await asyncio.sleep(self.MODE_POLL_INTERVAL)
 
     async def poll_reset_trigger(self):
@@ -133,7 +136,7 @@ class SensorManager:
                 try:
                     # Safely handle empty strings or weird Blynk widget values
                     if float(val) >= 1.0:
-                        print("[RESET] Reset button pressed — clearing all data…")
+                        logger.info("[RESET] Reset button pressed — clearing all data…")
                         blynk_client.update_pin(blynk_client.PINS['reset_trigger'], 0)
                         from data_wiper import perform_wipe
                         perform_wipe()
@@ -144,7 +147,7 @@ class SensorManager:
             try:
                 await asyncio.to_thread(_poll_and_reset)
             except Exception as e:
-                print(f"[RESET ERROR] {e}")
+                logger.error(f"[RESET ERROR] {e}")
             await asyncio.sleep(POLL_INTERVAL)
 
     async def fake_data_loop(self):
@@ -160,7 +163,7 @@ class SensorManager:
                 try:
                     data = read_all()
                     await asyncio.to_thread(self.process, data, save_sensor_data)
-                    print(f"[FAKE] Auto sensor tick (interval: {self.interval}s)")
+                    logger.info(f"[FAKE] Auto sensor tick (interval: {self.interval}s)")
                 except Exception as e:
-                    print(f"[FAKE ERROR] {e}")
+                    logger.error(f"[FAKE ERROR] {e}")
             await asyncio.sleep(self.interval)
