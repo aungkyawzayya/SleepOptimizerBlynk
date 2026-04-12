@@ -29,7 +29,7 @@ def perform_wipe() -> bool:
     db_ok = truncate_sensor_data()
 
     # Reset Blynk text/label widgets
-    for pin_key in ("ai_advice", "morning_rpt", "sleep_status"):
+    for pin_key in ("ai_advice", "morning_rpt", "morning_summary", "morning_tips", "sleep_status"):
         try:
             blynk_client.update_pin(blynk_client.PINS[pin_key], " ")
         except Exception as e:
