@@ -45,19 +45,17 @@ class MorningReport:
             print("[MORNING REPORT] Gemini returned no result.")
             return None
 
-        summary = result.get('summary', '')
-        tips    = result.get('tips', '')
         score   = result.get('score', 0)
+        summary = result.get('summary', '')[:255]
+        tips    = result.get('tips', '')[:255]
 
-        # Build message — keep under 255 chars (Blynk string limit)
-        msg = f"Score: {score}/100 | {summary}"
-        if tips:
-            msg += f" | Tips: {tips}"
-        if len(msg) > 255:
-            msg = msg[:252] + "..."
-
-        blynk_client.update_pin(blynk_client.PINS['morning_rpt'], msg)
-        print(f"[MORNING REPORT] Sent to Blynk V10 ({len(msg)} chars).")
+        # V10 — short score header
+        blynk_client.update_pin(blynk_client.PINS['morning_rpt'], f"🌙 Sleep Score: {score}/100")
+        # V18 — summary paragraph
+        blynk_client.update_pin(blynk_client.PINS['morning_summary'], summary)
+        # V19 — tips paragraph
+        blynk_client.update_pin(blynk_client.PINS['morning_tips'], tips)
+        print(f"[MORNING REPORT] Sent score={score}, summary={len(summary)}ch, tips={len(tips)}ch to Blynk.")
         return result
 
     # ── Background task ───────────────────────────────────────────

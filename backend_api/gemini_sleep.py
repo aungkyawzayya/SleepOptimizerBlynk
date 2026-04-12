@@ -198,10 +198,11 @@ Overnight sensor data:
 Generate a morning sleep report. Respond in this exact JSON format:
 {{
   "score": <integer 0-100 overall night score>,
-  "summary": "<2-3 sentence summary of overnight conditions>",
-  "tips": "<1-2 specific tips for improving sleep tonight>"
+  "summary": "<1-2 short sentences summarising overnight conditions, max 200 chars>",
+  "tips": "<1 short actionable tip for tonight, max 150 chars>"
 }}
 
+Keep each field brief so it fits on a small dashboard widget.
 Respond with ONLY the JSON, no other text."""
 
     try:
