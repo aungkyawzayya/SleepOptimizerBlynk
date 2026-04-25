@@ -1,54 +1,51 @@
-import smbus
 import time
+try:
+    import smbus
+except ImportError:
+    smbus = None
 
-# I2C address of the PCF8591 is usually 0x48
-address = 0x48
+# PCF8591 default I2C address
+I2C_ADDRESS = 0x48
 
-# Initialize I2C bus
-bus = smbus.SMBus(1)
+# We are using Analog Input 0 (A0) on the PCF8591
+INPUT_CH0 = 0x40
+
+_bus = None
 
 def setup_sound():
-    """
-    For the PCF8591, 'setup' just means checking if the 
-    chip is responding on the I2C bus.
-    """
+    """Initialize the I2C bus for the PCF8591."""
+    global _bus
+    if smbus is None:
+        print("Warning: smbus library not available. Install with: sudo apt install python3-smbus")
+        return False
     try:
-        # Quick write to test connection
-        bus.write_byte(address, 0x40)
-        print(f"PCF8591 found at address {hex(address)}")
+        # Use I2C bus 1
+        _bus = smbus.SMBus(1)
+        # Quick test to see if chip is there
+        _bus.write_byte(I2C_ADDRESS, INPUT_CH0)
+        print(f"Sound sensor (PCF8591) initialized at I2C address {hex(I2C_ADDRESS)}")
         return True
     except Exception as e:
-        print(f"Error connecting to PCF8591: {e}")
+        print(f"Error setting up PCF8591: {e}")
         return False
 
 def read_sound():
     """
-    Reads the analog value from Channel 0 (where your Yellow wire is).
-    Returns a value between 0 and 255.
+    Reads the analog value from the sound sensor.
+    Returns a value between 0.0 and 255.0.
     """
+    global _bus
+    if _bus is None:
+        if not setup_sound():
+            return None
     try:
-        # 0x40 tells the chip to read Analog Input 0 (A0)
-        bus.write_byte(address, 0x40)
+        # The chip needs a 'dummy' read to refresh the internal register
+        _bus.write_byte(I2C_ADDRESS, INPUT_CH0)
+        _bus.read_byte(I2C_ADDRESS) 
         
-        # The first read often returns the 'previous' value, 
-        # so we read twice to get the current sound level.
-        bus.read_byte(address) 
-        value = bus.read_byte(address)
-        
-        return value
+        # Now read the actual current sound level
+        analog_value = _bus.read_byte(I2C_ADDRESS)
+        return float(analog_value)
     except Exception as e:
-        print(f"Error reading sound: {e}")
+        print(f"Error reading analog sound sensor: {e}")
         return None
-
-# --- Testing the code ---
-if setup_sound():
-    print("Speak into the microphone to see the numbers change...")
-    try:
-        while True:
-            sound_level = read_sound()
-            if sound_level is not None:
-                # This will print numbers (e.g., 120, 150, 200)
-                print(f"Current Sound Level: {sound_level}")
-            time.sleep(0.2)
-    except KeyboardInterrupt:
-        print("Stopping...")
