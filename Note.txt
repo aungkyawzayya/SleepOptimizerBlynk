@@ -3,7 +3,7 @@ How To Run — All Terminals
 
 #Connect from Mac to Pi
 #----------------------
-ssh rpi@172.20.10.4
+ssh rpi@172.20.10.2
 
 #Clear Git's proxy settings
 #---------------------------
@@ -18,6 +18,7 @@ unset https_proxy
 #Git pull in Pi
 #--------------
 cd ~/Desktop/raspberry_pi
+git pull origin main
 git -c http.proxy= pull origin main
 
 #how to run in PI

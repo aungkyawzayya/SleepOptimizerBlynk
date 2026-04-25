@@ -19,9 +19,7 @@ def setup_sound():
         print("Warning: smbus library not available. Install with: sudo apt install python3-smbus")
         return False
     try:
-        # Use I2C bus 1
         _bus = smbus.SMBus(1)
-        # Quick test to see if chip is there
         _bus.write_byte(I2C_ADDRESS, INPUT_CH0)
         print(f"Sound sensor (PCF8591) initialized at I2C address {hex(I2C_ADDRESS)}")
         return True
@@ -31,21 +29,24 @@ def setup_sound():
 
 def read_sound():
     """
-    Reads the analog value from the sound sensor.
-    Returns a value between 0.0 and 255.0.
+    Reads analog value from PCF8591 and normalizes to 0-100.
+    0 = silent, 100 = very loud.
     """
     global _bus
     if _bus is None:
         if not setup_sound():
             return None
     try:
-        # The chip needs a 'dummy' read to refresh the internal register
+        # Dummy read to refresh internal register
         _bus.write_byte(I2C_ADDRESS, INPUT_CH0)
-        _bus.read_byte(I2C_ADDRESS) 
-        
-        # Now read the actual current sound level
+        _bus.read_byte(I2C_ADDRESS)
+
+        # Actual read
         analog_value = _bus.read_byte(I2C_ADDRESS)
-        return float(analog_value)
+
+        # Normalize 0-255 to 0-100
+        normalized = round((analog_value / 255.0) * 100, 1)
+        return normalized
     except Exception as e:
-        print(f"Error reading analog sound sensor: {e}")
+        print(f"Error reading sound sensor: {e}")
         return None
