@@ -23,7 +23,7 @@ git -c http.proxy= pull origin main
 
 #how to run in PI
 #----------------
-cd ~/Desktop/raspberry_pi
+cd ~/Desktop/raspberry_pi/raspberry_pi/ 
 sudo PYTHONPATH=. python3 main.py
 
 ======================================
