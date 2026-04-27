@@ -7,8 +7,6 @@ import urllib.error
 import os
 
 # --- SENSOR IMPORTS ---
-# This block attempts to load your physical sensor modules. 
-# If a file is missing, it falls back to dummy values so the script doesn't crash.
 try:
     from sensors.temperature import read_temperature, setup_temperature
     from sensors.sound import read_sound, setup_sound
@@ -29,7 +27,6 @@ except ImportError as e:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Add file logging if LOG_FILE environment variable is set
 log_file = os.getenv("LOG_FILE")
 if log_file:
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
@@ -38,15 +35,14 @@ if log_file:
     logging.getLogger().addHandler(file_handler)
 
 # --- CONFIGURATION ---
-# Points to your Cloud VM
 API_URL = os.getenv("API_URL", "http://136.119.125.251") 
 DATA_ENDPOINT     = f"{API_URL}/sensors/data"
 SETTINGS_ENDPOINT = f"{API_URL}/settings"
-DEFAULT_INTERVAL  = int(os.getenv("DEFAULT_INTERVAL", "5"))   # Seconds between readings
-SETTINGS_REFRESH  = int(os.getenv("SETTINGS_REFRESH", "10"))  # Refresh Blynk settings every X loops
+DEFAULT_INTERVAL  = int(os.getenv("DEFAULT_INTERVAL", "5"))
+SETTINGS_REFRESH  = int(os.getenv("SETTINGS_REFRESH", "10"))
 
 def get_settings():
-    """Fetch power and interval settings from the backend (Blynk)"""
+    """Fetch power and interval settings from the backend"""
     try:
         req = urllib.request.Request(SETTINGS_ENDPOINT, method="GET")
         proxy_handler = urllib.request.ProxyHandler({})
@@ -58,16 +54,15 @@ def get_settings():
         return {"power": 1, "interval": DEFAULT_INTERVAL}
 
 def get_all_sensor_payload():
-    """Collects real-time data from all connected physical hardware"""
+    """Collects real-time data and rounds values for clean logging/storage"""
     temp = read_temperature()
-    
     return {
         "temperature": round(temp, 2) if temp is not None else 0.0,
-        "humidity": 55.0,     # Placeholder (Add dht11.py if you have it)
+        "humidity": 55.0,     # Placeholder
         "co2": 450,           # Placeholder
-        "sound": read_sound(),
-        "light": read_light(),
-        "dust": read_dust(),
+        "sound": round(read_sound(), 2),
+        "light": round(read_light(), 2),
+        "dust": round(read_dust(), 4),
         "motion": 0           # Placeholder
     }
 
@@ -84,7 +79,6 @@ def send_to_fastapi(payload):
             },
             method="POST"
         )
-        # Bypass university/system proxies
         proxy_handler = urllib.request.ProxyHandler({})
         opener = urllib.request.build_opener(proxy_handler)
         with opener.open(req, timeout=10) as response:
@@ -97,7 +91,6 @@ def main():
     logger.info("--- Raspberry Pi Sensor Collector Started ---")
     logger.info(f"Targeting Server: {DATA_ENDPOINT}")
     
-    # Initialize all physical sensors
     setup_temperature()
     setup_sound()
     setup_dust()
@@ -105,11 +98,10 @@ def main():
 
     loop_count = 0
     interval   = DEFAULT_INTERVAL
-    power      = 1  # System ON by default
+    power      = 1 
 
     while True:
         try:
-            # Sync with Blynk settings periodically
             if loop_count % SETTINGS_REFRESH == 0:
                 settings = get_settings()
                 power    = settings.get("power", 1)
@@ -128,11 +120,12 @@ def main():
             # 2. Send Data
             result  = send_to_fastapi(payload)
 
-            # 3. Log Result
+            # 3. Log Result (Updated to show all data dynamically)
             if result:
                 timestamp = time.strftime('%H:%M:%S')
-                status = result.get('status', 'unknown')
-                logger.info(f"[{timestamp}] Sent Data | Temp: {payload['temperature']} | Dust: {payload['dust']} | Light: {payload['light']}")
+                # Dynamically build a string of all sensor values
+                sensor_data_str = " | ".join([f"{k.capitalize()}: {v}" for k, v in payload.items()])
+                logger.info(f"[{timestamp}] Sent Data OK >> {sensor_data_str}")
             else:
                 logger.error(f"[{time.strftime('%H:%M:%S')}] Failed to reach server at {API_URL}")
 
