@@ -7,41 +7,50 @@ import urllib.error
 import os
 
 # --- SENSOR IMPORTS ---
+# This block attempts to load your physical sensor modules. 
+# If a file is missing, it falls back to dummy values so the script doesn't crash.
 try:
     from sensors.temperature import read_temperature, setup_temperature
     from sensors.sound import read_sound, setup_sound
     from sensors.dust import read_dust, setup_dust
     from sensors.light import read_light, setup_light
-except ImportError:
-    print("Warning: Sensor modules not found. Using dummy values.")
-    def read_temperature(): return 25.0
+except ImportError as e:
+    print(f"Warning: Some sensor modules not found ({e}). Using dummy values.")
     def setup_temperature(): return True
-    def read_sound(): return 10.0
+    def read_temperature(): return 25.0
     def setup_sound(): return True
-    def read_dust(): return 0.02 
-    def setup_dust(): return True 
-    def read_light(): return 180.0
+    def read_sound(): return 0.0
+    def setup_dust(): return True
+    def read_dust(): return 0.02
     def setup_light(): return True
+    def read_light(): return 180
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, 
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Add file logging if LOG_FILE environment variable is set
+log_file = os.getenv("LOG_FILE")
+if log_file:
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(file_handler)
+
 # --- CONFIGURATION ---
+# Points to your Cloud VM
 API_URL = os.getenv("API_URL", "http://136.119.125.251") 
 DATA_ENDPOINT     = f"{API_URL}/sensors/data"
 SETTINGS_ENDPOINT = f"{API_URL}/settings"
-DEFAULT_INTERVAL  = 5   
-SETTINGS_REFRESH  = 5   
+DEFAULT_INTERVAL  = int(os.getenv("DEFAULT_INTERVAL", "5"))   # Seconds between readings
+SETTINGS_REFRESH  = int(os.getenv("SETTINGS_REFRESH", "10"))  # Refresh Blynk settings every X loops
 
 def get_settings():
-    """Fetch power and interval settings from the VM API"""
+    """Fetch power and interval settings from the backend (Blynk)"""
     try:
         req = urllib.request.Request(SETTINGS_ENDPOINT, method="GET")
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        proxy_handler = urllib.request.ProxyHandler({})
+        opener = urllib.request.build_opener(proxy_handler)
         with opener.open(req, timeout=5) as response:
             return json.loads(response.read().decode())
     except Exception as e:
@@ -49,33 +58,35 @@ def get_settings():
         return {"power": 1, "interval": DEFAULT_INTERVAL}
 
 def get_all_sensor_payload():
-    """Collects and packages all sensor data"""
+    """Collects real-time data from all connected physical hardware"""
     temp = read_temperature()
-    dust_val = read_dust()
-    sound_val = read_sound()
-    light_val = read_light()
     
     return {
         "temperature": round(temp, 2) if temp is not None else 0.0,
-        "humidity": 55.0,  
-        "dust": dust_val,
-        "sound": sound_val,
-        "co2": 450,
-        "light": light_val,
-        "motion": 0
+        "humidity": 55.0,     # Placeholder (Add dht11.py if you have it)
+        "co2": 450,           # Placeholder
+        "sound": read_sound(),
+        "light": read_light(),
+        "dust": read_dust(),
+        "motion": 0           # Placeholder
     }
 
 def send_to_fastapi(payload):
-    """Sends the JSON payload to the Cloud VM"""
+    """Sends sensor data to the Cloud VM via POST request"""
     try:
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             DATA_ENDPOINT,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json", 
+                "User-Agent": "Pi-Collector"
+            },
             method="POST"
         )
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        # Bypass university/system proxies
+        proxy_handler = urllib.request.ProxyHandler({})
+        opener = urllib.request.build_opener(proxy_handler)
         with opener.open(req, timeout=10) as response:
             return json.loads(response.read().decode("utf-8"))
     except Exception as e:
@@ -84,8 +95,9 @@ def send_to_fastapi(payload):
 
 def main():
     logger.info("--- Raspberry Pi Sensor Collector Started ---")
+    logger.info(f"Targeting Server: {DATA_ENDPOINT}")
     
-    # Initialize Hardware
+    # Initialize all physical sensors
     setup_temperature()
     setup_sound()
     setup_dust()
@@ -93,41 +105,36 @@ def main():
 
     loop_count = 0
     interval   = DEFAULT_INTERVAL
-    power      = 1
+    power      = 1  # System ON by default
 
     while True:
         try:
+            # Sync with Blynk settings periodically
             if loop_count % SETTINGS_REFRESH == 0:
                 settings = get_settings()
                 power    = settings.get("power", 1)
                 interval = settings.get("interval", DEFAULT_INTERVAL)
+                logger.info(f"[Settings] Power={'ON' if power else 'OFF'} | Interval={interval}s")
 
             if not power:
-                logger.info(f"[{time.strftime('%H:%M:%S')}] System OFF — idling...")
+                logger.info(f"[{time.strftime('%H:%M:%S')}] System OFF — waiting...")
                 time.sleep(interval)
                 loop_count += 1
                 continue
 
-            # 1. Collect Data
+            # 1. Read Data
             payload = get_all_sensor_payload()
             
-            # 2. Send to Cloud
+            # 2. Send Data
             result  = send_to_fastapi(payload)
 
-            # 3. Display Detailed Result in Terminal
+            # 3. Log Result
             if result:
                 timestamp = time.strftime('%H:%M:%S')
-                status = result.get('status', 'success')
-                # Updated log line to include Sound
-                logger.info(
-                    f"[{timestamp}] Sent: {payload['temperature']}°C | "
-                    f"Sound: {payload['sound']} | "
-                    f"Dust: {payload['dust']} mg/m³ | "
-                    f"Light: {payload['light']} | "
-                    f"Status: {status}"
-                )
+                status = result.get('status', 'unknown')
+                logger.info(f"[{timestamp}] Sent Data | Temp: {payload['temperature']} | Dust: {payload['dust']} | Light: {payload['light']}")
             else:
-                logger.warning(f"[{time.strftime('%H:%M:%S')}] Server unreachable.")
+                logger.error(f"[{time.strftime('%H:%M:%S')}] Failed to reach server at {API_URL}")
 
         except Exception as e:
             logger.error(f"Loop Error: {e}")
