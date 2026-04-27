@@ -12,16 +12,19 @@ try:
     from sensors.temperature import read_temperature, setup_temperature
     from sensors.sound import read_sound, setup_sound
     from sensors.dust import read_dust, setup_dust
+    from sensors.light import read_light, setup_light  # Added Light Sensor
 except ImportError:
     print("Warning: Sensor modules not found. Using dummy values.")
     def read_temperature(): return 25.0
     def setup_temperature(): return True
     def read_sound(): return 0.0
     def setup_sound(): return True
-    def read_dust(): return 0.02  # Fallback dummy value
+    def read_dust(): return 0.02 
     def setup_dust(): return True 
+    def read_light(): return 180.0  # Fallback dummy value
+    def setup_light(): return True
 
-# Configure logging to match your requested format
+# Configure logging
 logging.basicConfig(
     level=logging.INFO, 
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -29,18 +32,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
-# Replace with your actual VM IP
 API_URL = os.getenv("API_URL", "http://136.119.125.251") 
 DATA_ENDPOINT     = f"{API_URL}/sensors/data"
 SETTINGS_ENDPOINT = f"{API_URL}/settings"
-DEFAULT_INTERVAL  = 5   # seconds
-SETTINGS_REFRESH  = 5   # check for Blynk updates every 5 loops
+DEFAULT_INTERVAL  = 5   
+SETTINGS_REFRESH  = 5   
 
 def get_settings():
     """Fetch power and interval settings from the VM API"""
     try:
         req = urllib.request.Request(SETTINGS_ENDPOINT, method="GET")
-        # Bypass local proxies (crucial for university/corporate networks)
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with opener.open(req, timeout=5) as response:
             return json.loads(response.read().decode())
@@ -53,14 +54,15 @@ def get_all_sensor_payload():
     temp = read_temperature()
     dust_val = read_dust()
     sound_val = read_sound()
+    light_val = read_light() # Read from A2
     
     return {
         "temperature": round(temp, 2) if temp is not None else 0.0,
-        "humidity": 55.0,  # Placeholder or add read_humidity()
+        "humidity": 55.0,  
         "dust": dust_val,
         "sound": sound_val,
         "co2": 450,
-        "light": 180,
+        "light": light_val,
         "motion": 0
     }
 
@@ -88,6 +90,7 @@ def main():
     setup_temperature()
     setup_sound()
     setup_dust()
+    setup_light() # Initialize Light Sensor
 
     loop_count = 0
     interval   = DEFAULT_INTERVAL
@@ -95,7 +98,6 @@ def main():
 
     while True:
         try:
-            # Periodically sync with Blynk settings via the API
             if loop_count % SETTINGS_REFRESH == 0:
                 settings = get_settings()
                 power    = settings.get("power", 1)
@@ -113,12 +115,16 @@ def main():
             # 2. Send to Cloud
             result  = send_to_fastapi(payload)
 
-            # 3. Display Result in Terminal
+            # 3. Display Result in Terminal with Light Sensor included
             if result:
                 timestamp = time.strftime('%H:%M:%S')
                 status = result.get('status', 'success')
-                # This line generates the output you requested:
-                logger.info(f"[{timestamp}] Sent: {payload['temperature']}°C | Dust: {payload['dust']} mg/m³ | Server Status: {status}")
+                logger.info(
+                    f"[{timestamp}] Sent: {payload['temperature']}°C | "
+                    f"Dust: {payload['dust']} mg/m³ | "
+                    f"Light: {payload['light']} | "
+                    f"Status: {status}"
+                )
             else:
                 logger.warning(f"[{time.strftime('%H:%M:%S')}] Server unreachable.")
 
