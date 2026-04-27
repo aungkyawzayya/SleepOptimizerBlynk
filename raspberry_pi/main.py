@@ -7,21 +7,20 @@ import urllib.error
 import os
 
 # --- SENSOR IMPORTS ---
-# Ensures the Pi can find your hardware scripts in the /sensors folder
 try:
     from sensors.temperature import read_temperature, setup_temperature
     from sensors.sound import read_sound, setup_sound
     from sensors.dust import read_dust, setup_dust
-    from sensors.light import read_light, setup_light  # Added Light Sensor
+    from sensors.light import read_light, setup_light
 except ImportError:
     print("Warning: Sensor modules not found. Using dummy values.")
     def read_temperature(): return 25.0
     def setup_temperature(): return True
-    def read_sound(): return 0.0
+    def read_sound(): return 10.0
     def setup_sound(): return True
     def read_dust(): return 0.02 
     def setup_dust(): return True 
-    def read_light(): return 180.0  # Fallback dummy value
+    def read_light(): return 180.0
     def setup_light(): return True
 
 # Configure logging
@@ -54,7 +53,7 @@ def get_all_sensor_payload():
     temp = read_temperature()
     dust_val = read_dust()
     sound_val = read_sound()
-    light_val = read_light() # Read from A2
+    light_val = read_light()
     
     return {
         "temperature": round(temp, 2) if temp is not None else 0.0,
@@ -90,7 +89,7 @@ def main():
     setup_temperature()
     setup_sound()
     setup_dust()
-    setup_light() # Initialize Light Sensor
+    setup_light()
 
     loop_count = 0
     interval   = DEFAULT_INTERVAL
@@ -115,12 +114,14 @@ def main():
             # 2. Send to Cloud
             result  = send_to_fastapi(payload)
 
-            # 3. Display Result in Terminal with Light Sensor included
+            # 3. Display Detailed Result in Terminal
             if result:
                 timestamp = time.strftime('%H:%M:%S')
                 status = result.get('status', 'success')
+                # Updated log line to include Sound
                 logger.info(
                     f"[{timestamp}] Sent: {payload['temperature']}°C | "
+                    f"Sound: {payload['sound']} | "
                     f"Dust: {payload['dust']} mg/m³ | "
                     f"Light: {payload['light']} | "
                     f"Status: {status}"
