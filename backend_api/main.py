@@ -33,7 +33,7 @@ if log_file:
 
 
 # ══════════════════════════════════════════════════════════════
-# Data Model (CLEAN)
+# Data Model
 # ══════════════════════════════════════════════════════════════
 class SensorData(BaseModel):
     temperature: Optional[float] = None
@@ -52,7 +52,6 @@ morning_rpt   = MorningReport()
 latest_check  = {}
 start_time    = time.time()
 
-# Manual control state
 runtime_settings = {
     "fan_manual": 0
 }
@@ -95,7 +94,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down server...")
 
 
-app = FastAPI(title="Sleep Optimizer API", version="3.0.0", lifespan=lifespan)
+app = FastAPI(title="Sleep Optimizer API", version="3.1.0", lifespan=lifespan)
 app.include_router(data_wiper.router)
 
 
@@ -118,6 +117,14 @@ def receive_data(sensor_data: SensorData):
     if not data:
         raise HTTPException(status_code=400, detail="Empty data")
 
+    # Show fan status on Blynk dashboard
+    if "fan" in data:
+        fan_text = "Fan ON" if data["fan"] == 1 else "Fan OFF"
+        try:
+            blynk_client.update_pin(blynk_client.PINS["fan_status"], fan_text)
+        except Exception as e:
+            logger.error(f"[BLYNK FAN STATUS ERROR] {e}")
+
     return sensors.process(data, save_fn=save_sensor_data)
 
 
@@ -129,10 +136,20 @@ def get_settings():
     interval = int(float(interval_raw)) if interval_raw else 5
     interval = max(5, min(300, interval))
 
+    # Read fan manual button from Blynk V24
+    try:
+        fan_raw = blynk_client.get_pin(blynk_client.PINS["fan_manual"])
+        fan_manual = int(float(fan_raw)) if fan_raw is not None else runtime_settings["fan_manual"]
+    except Exception as e:
+        logger.error(f"[BLYNK FAN MANUAL ERROR] {e}")
+        fan_manual = runtime_settings["fan_manual"]
+
+    runtime_settings["fan_manual"] = fan_manual
+
     return {
         "power": 1 if sensors.power_on else 0,
         "interval": interval,
-        "fan_manual": runtime_settings["fan_manual"]
+        "fan_manual": fan_manual
     }
 
 
@@ -142,6 +159,11 @@ def set_fan_manual(fan_manual: int):
         raise HTTPException(status_code=400, detail="Invalid value")
 
     runtime_settings["fan_manual"] = fan_manual
+
+    try:
+        blynk_client.update_pin(blynk_client.PINS["fan_manual"], fan_manual)
+    except Exception as e:
+        logger.error(f"[BLYNK FAN MANUAL UPDATE ERROR] {e}")
 
     return {
         "status": "ok",
