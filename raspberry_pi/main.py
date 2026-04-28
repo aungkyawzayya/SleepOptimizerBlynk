@@ -3,7 +3,6 @@ import time
 import json
 import logging
 import urllib.request
-import urllib.error
 import os
 
 # --- SENSOR IMPORTS ---
@@ -21,7 +20,7 @@ except ImportError as e:
     def setup_sound(): return True
     def read_sound(): return 0.0
     def setup_dust(): return True
-    def read_dust(): return 0.02
+    def read_dust(): return 0.0
     def setup_light(): return True
     def read_light(): return 180
     def setup_fan(): return True
@@ -29,16 +28,12 @@ except ImportError as e:
     def cleanup_fan(): pass
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# --- LOGGING ---
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
-
-log_file = os.getenv("LOG_FILE")
-if log_file:
-    os.makedirs(os.path.dirname(log_file), exist_ok=True)
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-    logging.getLogger().addHandler(file_handler)
 
 
 # --- CONFIGURATION ---
@@ -54,7 +49,7 @@ TEMP_OFF_THRESHOLD = float(os.getenv("TEMP_OFF_THRESHOLD", "24"))
 
 
 def get_settings():
-    """Fetch power, interval and fan settings from backend."""
+    """Fetch power, interval, and fan manual settings from backend."""
     try:
         req = urllib.request.Request(SETTINGS_ENDPOINT, method="GET")
         proxy_handler = urllib.request.ProxyHandler({})
@@ -78,21 +73,21 @@ def get_all_sensor_payload():
 
     return {
         "temperature": round(temp, 2) if temp is not None else 0.0,
-        "humidity": 55.0,      # Placeholder
-        "co2": 450,            # Placeholder
+        "humidity": 55.0,
+        "co2": 450,
         "sound": round(read_sound(), 2),
         "light": round(read_light(), 2),
         "dust": round(read_dust(), 4),
-        "motion": 0            # Placeholder
+        "motion": 0
     }
 
 
-def decide_fan_state(temperature: float, fan_manual: int, previous_fan_state: int) -> int:
+def decide_fan_state(temperature, fan_manual, previous_fan_state):
     """
-    Fan control logic:
-    - If Blynk manual button is ON, fan ON.
-    - If manual OFF, use automatic temperature control.
-    - Uses two thresholds to avoid rapid ON/OFF switching.
+    Fan logic:
+    - fan_manual = 1 means force fan ON from backend/Blynk
+    - otherwise use automatic temperature control
+    - hysteresis avoids frequent ON/OFF switching
     """
     if fan_manual == 1:
         return 1
@@ -107,7 +102,7 @@ def decide_fan_state(temperature: float, fan_manual: int, previous_fan_state: in
 
 
 def send_to_fastapi(payload):
-    """Send sensor data to the Cloud VM via POST request."""
+    """Send sensor data to FastAPI backend."""
     try:
         data = json.dumps(payload).encode("utf-8")
 
@@ -132,6 +127,21 @@ def send_to_fastapi(payload):
         return None
 
 
+def format_payload_for_log(payload):
+    """Convert 0/1 values to readable words for log display."""
+    display_payload = payload.copy()
+
+    if "fan" in display_payload:
+        display_payload["fan"] = "ON" if display_payload["fan"] == 1 else "OFF"
+
+    if "motion" in display_payload:
+        display_payload["motion"] = "YES" if display_payload["motion"] == 1 else "NO"
+
+    return " | ".join(
+        [f"{k.capitalize()}: {v}" for k, v in display_payload.items()]
+    )
+
+
 def main():
     logger.info("--- Raspberry Pi Sensor Collector Started ---")
     logger.info(f"Targeting Server: {DATA_ENDPOINT}")
@@ -152,6 +162,7 @@ def main():
         try:
             if loop_count % SETTINGS_REFRESH == 0:
                 settings = get_settings()
+
                 power = settings.get("power", 1)
                 interval = settings.get("interval", DEFAULT_INTERVAL)
                 fan_manual = settings.get("fan_manual", 0)
@@ -172,22 +183,22 @@ def main():
             # 1. Read sensor data
             payload = get_all_sensor_payload()
 
-            # 2. Fan control
+            # 2. Decide fan state
             temperature = payload.get("temperature", 0.0)
             fan_state = decide_fan_state(temperature, fan_manual, fan_state)
+
+            # 3. Control fan relay
             set_fan(fan_state)
 
-            # Add fan state into payload for FastAPI / MySQL / Blynk
+            # 4. Add fan state to payload
             payload["fan"] = fan_state
 
-            # 3. Send data
+            # 5. Send to FastAPI
             result = send_to_fastapi(payload)
 
-            # 4. Log result
-            timestamp = time.strftime('%H:%M:%S')
-            sensor_data_str = " | ".join(
-                [f"{k.capitalize()}: {v}" for k, v in payload.items()]
-            )
+            # 6. Log result
+            timestamp = time.strftime("%H:%M:%S")
+            sensor_data_str = format_payload_for_log(payload)
 
             if result:
                 logger.info(f"[{timestamp}] Sent Data OK >> {sensor_data_str}")

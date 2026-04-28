@@ -24,13 +24,13 @@ import data_wiper
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Add file logging if LOG_FILE is set
 log_file = os.getenv("LOG_FILE")
 if log_file:
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logging.getLogger().addHandler(file_handler)
+
 
 # ══════════════════════════════════════════════════════════════
 # Data Models
@@ -43,6 +43,8 @@ class SensorData(BaseModel):
     light:       Optional[float] = None
     dust:        Optional[float] = None
     motion:      Optional[int]   = None
+    fan:         Optional[int]   = None
+
 
 # ══════════════════════════════════════════════════════════════
 # App State
@@ -53,9 +55,13 @@ morning_rpt   = MorningReport()
 latest_check: dict = {}
 start_time    = time.time()
 
+# Manual fan control from Blynk/backend
+runtime_settings = {
+    "fan_manual": 0
+}
+
 data_wiper.init_wiper(sensors)
 
-# save_sensor_data is imported from database.py and shared across Pi + Fake modes
 
 # ══════════════════════════════════════════════════════════════
 # Lifecycle
@@ -69,7 +75,6 @@ async def lifespan(app: FastAPI):
     try:
         if blynk_client.check_connection():
             logger.info("[OK] Blynk: Connected")
-            # Clear transient values on startup
             blynk_client.update_pin(blynk_client.PINS['ai_advice'], " ")
             blynk_client.update_pin(blynk_client.PINS['sleep_score'], " ")
             blynk_client.update_pin(blynk_client.PINS['morning_rpt'], " ")
@@ -77,8 +82,10 @@ async def lifespan(app: FastAPI):
             blynk_client.update_pin(blynk_client.PINS['morning_tips'], " ")
             blynk_client.update_property(blynk_client.PINS['power'], "label", "Power")
             blynk_client.update_property(blynk_client.PINS['room_check_trigger'], "label", "Room Check AI")
+
         if gemini_sleep.init_gemini():
             logger.info("[OK] Gemini AI: Ready")
+
     except Exception as e:
         logger.error(f"[STARTUP ERROR] {e}")
 
@@ -89,13 +96,18 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(sensors.fake_data_loop()),
         asyncio.create_task(sensors.poll_reset_trigger()),
     ]
+
     yield
+
     for t in tasks:
         t.cancel()
+
     logger.info("Shutting down server...")
 
-app = FastAPI(title="Sleep Optimizer API", version="2.0.0", lifespan=lifespan)
+
+app = FastAPI(title="Sleep Optimizer API", version="2.1.0", lifespan=lifespan)
 app.include_router(data_wiper.router)
+
 
 # ══════════════════════════════════════════════════════════════
 # Endpoints
@@ -110,9 +122,11 @@ def receive_data(sensor_data: SensorData):
     """Raspberry Pi posts real-time sensor data here."""
     if not sensors.power_on:
         raise HTTPException(status_code=503, detail="Power is OFF — data rejected")
+
     data = sensor_data.model_dump(exclude_none=True)
     if not data:
         raise HTTPException(status_code=400, detail="Empty data received")
+
     return sensors.process(data, save_fn=save_sensor_data)
 
 
@@ -131,6 +145,7 @@ def ai_analysis(sensor_data: Optional[SensorData] = None):
     data = sensors.latest_data
     if sensor_data:
         data = sensor_data.model_dump(exclude_none=True)
+
     if not data:
         raise HTTPException(status_code=400, detail="No sensor data available")
 
@@ -146,23 +161,51 @@ def ai_analysis(sensor_data: Optional[SensorData] = None):
 def morning_report_endpoint():
     """Generate a Gemini morning sleep report from overnight history."""
     result = morning_rpt.generate(list(sensors.history))
+
     if not result:
         raise HTTPException(status_code=400, detail="Insufficient data or generation failed")
+
     return result
 
 
 @app.get("/settings")
 def get_settings():
     """
-    Raspberry Pi polls this for power and interval settings.
-    Power reflects the Blynk button state regardless of mode.
+    Raspberry Pi polls this for power, interval and fan settings.
+    fan_manual:
+      0 = automatic fan control by temperature
+      1 = force fan ON manually
     """
     interval_raw = blynk_client.get_pin(blynk_client.PINS['interval'])
     interval = int(float(interval_raw)) if interval_raw is not None else 5
-    interval = max(5, min(300, interval))  # clamp 5 – 300 s
-    return {"power": 1 if sensors.power_on else 0, "interval": interval}
+    interval = max(5, min(300, interval))
+
+    return {
+        "power": 1 if sensors.power_on else 0,
+        "interval": interval,
+        "fan_manual": runtime_settings["fan_manual"]
+    }
 
 
+@app.post("/settings/fan/{fan_manual}")
+def update_fan_manual(fan_manual: int):
+    """
+    Update manual fan control.
+    0 = automatic mode
+    1 = force fan ON
+    """
+    if fan_manual not in [0, 1]:
+        raise HTTPException(status_code=400, detail="fan_manual must be 0 or 1")
+
+    runtime_settings["fan_manual"] = fan_manual
+
+    return {
+        "status": "success",
+        "message": "Fan manual setting updated",
+        "settings": {
+            "fan_manual": runtime_settings["fan_manual"]
+        }
+    }
 
 
 @app.get("/status")
@@ -173,6 +216,7 @@ def server_status():
         "mode":          "Fake API" if sensors.is_fake() else "Raspberry Pi",
         "latest_read":   sensors.latest_data,
         "history_count": len(sensors.history),
+        "fan_manual":    runtime_settings["fan_manual"]
     }
 
 
