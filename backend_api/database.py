@@ -10,9 +10,6 @@ load_dotenv(env_path)
 logger = logging.getLogger(__name__)
 
 
-# ══════════════════════════════════════════════════════════════
-# Database Connection
-# ══════════════════════════════════════════════════════════════
 def get_connection():
     """Create and return a new database connection."""
     return mysql.connector.connect(
@@ -23,58 +20,44 @@ def get_connection():
     )
 
 
-# ══════════════════════════════════════════════════════════════
-# Reset / Clean Data
-# ══════════════════════════════════════════════════════════════
 def truncate_sensor_data():
-    """Delete all rows from sensor_data table (full reset)."""
+    """Delete all rows from sensor_data table."""
     conn = None
     try:
         conn = get_connection()
         cursor = conn.cursor()
-
         cursor.execute("DELETE FROM sensor_data")
         conn.commit()
-
         cursor.close()
         logger.info("[DB] sensor_data table cleared.")
         return True
-
     except Exception as e:
         logger.error(f"[DB TRUNCATE ERROR] {e}")
         return False
-
     finally:
         if conn:
             conn.close()
 
 
-# ══════════════════════════════════════════════════════════════
-# Insert Sensor Data
-# ══════════════════════════════════════════════════════════════
 def save_sensor_data(data: dict):
     """Persist a sensor reading to MySQL."""
     conn = None
-
     try:
         conn = get_connection()
         cursor = conn.cursor()
 
         cursor.execute(
             """
-            INSERT INTO sensor_data 
-            (temperature, humidity, co2, sound, light, dust, motion, fan)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO sensor_data
+            (temperature, sound, light, dust, fan)
+            VALUES (%s, %s, %s, %s, %s)
             """,
             (
                 data.get("temperature"),
-                data.get("humidity"),
-                data.get("co2"),
                 data.get("sound"),
                 data.get("light"),
                 data.get("dust"),
-                data.get("motion"),
-                data.get("fan")   # ✅ NEW FIELD
+                data.get("fan")
             )
         )
 
@@ -89,13 +72,9 @@ def save_sensor_data(data: dict):
             conn.close()
 
 
-# ══════════════════════════════════════════════════════════════
-# Query Latest Data (optional)
-# ══════════════════════════════════════════════════════════════
 def get_latest_data(limit=10):
     """Fetch latest sensor records."""
     conn = None
-
     try:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
@@ -122,13 +101,9 @@ def get_latest_data(limit=10):
             conn.close()
 
 
-# ══════════════════════════════════════════════════════════════
-# Fan Usage Statistics (optional for demo)
-# ══════════════════════════════════════════════════════════════
 def get_fan_usage():
-    """Calculate how many times fan was ON."""
+    """Calculate how many records show fan ON."""
     conn = None
-
     try:
         conn = get_connection()
         cursor = conn.cursor()

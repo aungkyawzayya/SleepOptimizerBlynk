@@ -73,12 +73,9 @@ def get_all_sensor_payload():
 
     return {
         "temperature": round(temp, 2) if temp is not None else 0.0,
-        "humidity": 55.0,
-        "co2": 450,
         "sound": round(read_sound(), 2),
         "light": round(read_light(), 2),
-        "dust": round(read_dust(), 4),
-        "motion": 0
+        "dust": round(read_dust(), 4)
     }
 
 
@@ -134,9 +131,6 @@ def format_payload_for_log(payload):
     if "fan" in display_payload:
         display_payload["fan"] = "ON" if display_payload["fan"] == 1 else "OFF"
 
-    if "motion" in display_payload:
-        display_payload["motion"] = "YES" if display_payload["motion"] == 1 else "NO"
-
     return " | ".join(
         [f"{k.capitalize()}: {v}" for k, v in display_payload.items()]
     )
@@ -180,23 +174,17 @@ def main():
                 loop_count += 1
                 continue
 
-            # 1. Read sensor data
             payload = get_all_sensor_payload()
 
-            # 2. Decide fan state
             temperature = payload.get("temperature", 0.0)
             fan_state = decide_fan_state(temperature, fan_manual, fan_state)
 
-            # 3. Control fan relay
             set_fan(fan_state)
 
-            # 4. Add fan state to payload
             payload["fan"] = fan_state
 
-            # 5. Send to FastAPI
             result = send_to_fastapi(payload)
 
-            # 6. Log result
             timestamp = time.strftime("%H:%M:%S")
             sensor_data_str = format_payload_for_log(payload)
 
