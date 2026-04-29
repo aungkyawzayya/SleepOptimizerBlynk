@@ -42,7 +42,8 @@ DATA_ENDPOINT = f"{API_URL}/sensors/data"
 SETTINGS_ENDPOINT = f"{API_URL}/settings"
 
 DEFAULT_INTERVAL = int(os.getenv("DEFAULT_INTERVAL", "5"))
-SETTINGS_REFRESH = int(os.getenv("SETTINGS_REFRESH", "10"))
+#SETTINGS_REFRESH = int(os.getenv("SETTINGS_REFRESH", "10"))
+SETTINGS_REFRESH = int(os.getenv("SETTINGS_REFRESH", "1"))
 
 TEMP_ON_THRESHOLD = float(os.getenv("TEMP_ON_THRESHOLD", "26"))
 TEMP_OFF_THRESHOLD = float(os.getenv("TEMP_OFF_THRESHOLD", "24"))
