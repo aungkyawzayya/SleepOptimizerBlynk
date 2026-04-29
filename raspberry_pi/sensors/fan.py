@@ -1,16 +1,22 @@
 import RPi.GPIO as GPIO
+import time
 
 FAN_PIN = 18
 
-# Your relay is HIGH-triggered:
-# GPIO HIGH = relay ON  = fan ON
-# GPIO LOW  = relay OFF = fan OFF
+# HIGH-triggered relay:
+# GPIO HIGH = fan ON
+# GPIO LOW  = fan OFF
 
 def setup_fan():
     GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
-    GPIO.setup(FAN_PIN, GPIO.OUT)
-    turn_fan_off()   # ensure safe initial state
+
+    # 🔥 VERY IMPORTANT: set initial state BEFORE enabling output
+    GPIO.setup(FAN_PIN, GPIO.OUT, initial=GPIO.LOW)
+
+    # small delay to stabilize relay (optional but recommended)
+    time.sleep(0.1)
+
     return True
 
 
