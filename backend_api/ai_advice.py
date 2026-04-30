@@ -2,13 +2,12 @@
 Sleep Optimizer — AI Room Analysis
 =====================================
 Handles Gemini AI room-environment checks and syncs results to Blynk.
-Extracted from main.py for cleaner separation of concerns.
+Updated for Temperature, Sound (0-100), Light (0-255), and Dust (mg/m³).
 """
 
 import asyncio
 import blynk_client
 import gemini_sleep
-
 
 class AIAdvice:
     """
@@ -20,29 +19,27 @@ class AIAdvice:
 
     def run(self, data: dict) -> dict | None:
         """
-        Analyse sensor data with Gemini AI.
-
-        Args:
-            data: Sensor dict (temperature, humidity, co2, …)
-
-        Returns:
-            {"score": int, "advice": str}  or  None on failure
+        Analyze current sensor data with Gemini AI.
+        data: {"temperature": float, "sound": float, "light": int, "dust": float}
         """
+        # Call the updated gemini_sleep logic
         result = gemini_sleep.room_check(data)
         if not result:
             print("[AI ADVICE] Gemini returned no result.")
             return None
 
         try:
+            # 1. Update Sleep Score (V8) and Advice Text (V9)
             blynk_client.update_pin(blynk_client.PINS['sleep_score'], result['score'])
             blynk_client.update_pin(blynk_client.PINS['ai_advice'],   result['advice'])
 
-            # Colour the score gauge: green / amber / red
+            # 2. Dynamic Score Gauge Coloring
             score = result.get('score', 0)
             color = "#4CAF50" if score >= 80 else "#FF9800" if score >= 50 else "#F44336"
             blynk_client.update_property(blynk_client.PINS['sleep_score'], "color", color)
 
-            # Dynamic Sleep Status banner (V7)
+            # 3. Dynamic Sleep Status Banner (V11)
+            # Matching the status pin used in your recent Blynk mapping
             if score >= 80:
                 status = "🌙 Good Sleep Quality"
             elif score >= 50:
@@ -59,27 +56,28 @@ class AIAdvice:
     # ── Background task ───────────────────────────────────────────
     async def poll_trigger(self, get_latest_data_fn):
         """
-        Background task: poll V16 every POLL_INTERVAL seconds.
-        When the button is pressed (value == 1), reset it and
-        generate a room check report using the latest data.
-
-        Args:
-            get_latest_data_fn: Zero-arg callable that returns the latest sensor data.
+        Background task: poll V16 button. When pressed (1), reset it
+        and generate a report using the latest 4-sensor data.
         """
         def _poll_and_run():
             val = blynk_client.get_pin(blynk_client.PINS['room_check_trigger'])
+            # Support both string and int responses from Blynk API
             if val is not None and int(float(val)) == 1:
-                print("[AI ADVICE] Room Check Button pressed — generating…")
-                # Reset pin immediately so a second press works
+                print("[AI ADVICE] Room Check Trigger (V16) detected.")
+                
+                # Reset pin immediately to allow for subsequent triggers
                 blynk_client.update_pin(blynk_client.PINS['room_check_trigger'], 0)
+                
                 data = get_latest_data_fn()
                 if not data:
-                    print("[AI ADVICE] No sensor data yet — skipping.")
+                    print("[AI ADVICE] Data buffer empty — skipping check.")
                     return
+                
                 self.run(data)
 
         while True:
             try:
+                # Use to_thread to keep the asyncio loop unblocked during HTTP calls
                 await asyncio.to_thread(_poll_and_run)
             except Exception as e:
                 print(f"[AI ADVICE ERROR] {e}")

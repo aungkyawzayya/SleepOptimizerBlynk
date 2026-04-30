@@ -1,30 +1,39 @@
 """
-Fake Sound Sensor (MAX4466 — Sprint 3)
-========================================
-Simulates bedroom noise: 20-45dB baseline
-Occasional spikes for snoring or traffic.
+Fake Sound Sensor (Analog Mic via PCF8591)
+=======================================
+Simulates 8-bit analog sound snapshots.
+Normalizes raw 0-255 values to a 0-100 scale.
 """
 
 import random
 
-_current = 25.0
-
+# Internal state to simulate ambient room noise
+_current_raw = 30.0 
 
 def read_sound():
-    """Returns sound level in dB."""
-    global _current
+    """
+    Simulates analog sound reading on PCF8591 AIN0.
+    Returns 0.0 to 100.0 (Silent to Loud).
+    """
+    global _current_raw
 
+    # 1. Simulate ambient background noise (slight fluctuations)
+    # Most analog mics have a small voltage floor even when quiet.
     change = random.uniform(-1.0, 1.0)
-    _current += change
+    _current_raw += change
 
-    # 5% chance of noise spike (snoring, traffic)
-    if random.random() < 0.05:
-        _current += random.uniform(15, 40)
+    # 2. 2% chance of a loud noise spike (snore, cough, or moving)
+    if random.random() < 0.02:
+        _current_raw += random.randint(40, 100)
 
-    _current = max(15.0, min(90.0, _current))
+    # 3. Constrain to 8-bit ADC range (0-255)
+    _current_raw = max(5.0, min(255.0, _current_raw))
 
-    # Decay back to baseline after spike
-    if _current > 40:
-        _current -= random.uniform(2, 5)
+    # 4. Decay logic: return to quiet baseline
+    if _current_raw > 35:
+        _current_raw -= 2.0
 
-    return round(_current, 1)
+    # 5. Math: Normalize 0-255 to 0-100 (Matches your actual sound.py)
+    normalized = round((_current_raw / 255.0) * 100, 1)
+    
+    return normalized

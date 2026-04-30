@@ -1,30 +1,43 @@
 """
-Fake Dust/Air Quality Sensor (PMS5003 — Sprint 5)
+Fake Dust Sensor (Sharp GP2Y1010AU0F via PCF8591)
 ===================================================
-Simulates PM2.5 levels: 5-25 µg/m³ baseline
-Occasional spikes when someone moves or fan turns on.
+Simulates raw 8-bit ADC readings (0-255) and converts 
+to mg/m³ using the standard linear equation.
 """
 
 import random
 
-_current = 8.0
-
+# Global to track state for smooth transitions
+_raw_value = 40.0 
 
 def read_dust():
-    """Returns PM2.5 in µg/m³."""
-    global _current
+    """
+    Simulates the Sharp GP2Y1010AU0F logic on a 3.3V Raspberry Pi.
+    Returns: float (dust density in mg/m3)
+    """
+    global _raw_value
 
-    change = random.uniform(-0.5, 0.5)
-    _current += change
+    # 1. Simulate minor raw fluctuations (-2 to +2 steps on the ADC)
+    change = random.uniform(-2, 2)
+    _raw_value += change
 
-    # 3% chance of dust spike
-    if random.random() < 0.03:
-        _current += random.uniform(10, 30)
+    # 2. Occasional 5% chance of a "Dust Spike" (e.g., someone walking by)
+    if random.random() < 0.05:
+        _raw_value += random.randint(30, 60)
 
-    # Decay back to baseline after spike
-    if _current > 25:
-        _current -= random.uniform(1, 3)
+    # 3. Constrain to 8-bit range (0-255)
+    _raw_value = max(0.0, min(255.0, _raw_value))
+    
+    # 4. Math: Convert raw ADC to Voltage (assuming 3.3V Ref)
+    #
+    voltage = (_raw_value * 3.3) / 255.0
+    
+    # 5. Math: Convert Voltage to mg/m3
+    # Equation: 0.17 * voltage - 0.1
+    dust_density = 0.17 * voltage - 0.1
+    
+    # 6. Decay logic: slowly return to baseline (~0.03 mg/m3)
+    if _raw_value > 40:
+        _raw_value -= 1.5
 
-    _current = max(0.0, min(100.0, _current))
-
-    return round(_current, 1)
+    return round(max(0.0, dust_density), 4)
