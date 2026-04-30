@@ -32,9 +32,6 @@ if log_file:
     logging.getLogger().addHandler(file_handler)
 
 
-# ══════════════════════════════════════════════════════════════
-# Data Model
-# ══════════════════════════════════════════════════════════════
 class SensorData(BaseModel):
     temperature: Optional[float] = None
     sound:       Optional[float] = None
@@ -43,9 +40,6 @@ class SensorData(BaseModel):
     fan:         Optional[int]   = None
 
 
-# ══════════════════════════════════════════════════════════════
-# App State
-# ══════════════════════════════════════════════════════════════
 sensors       = SensorManager(max_history=100)
 ai_advice     = AIAdvice()
 morning_rpt   = MorningReport()
@@ -59,9 +53,6 @@ runtime_settings = {
 data_wiper.init_wiper(sensors)
 
 
-# ══════════════════════════════════════════════════════════════
-# Lifecycle
-# ══════════════════════════════════════════════════════════════
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("=" * 50)
@@ -71,6 +62,14 @@ async def lifespan(app: FastAPI):
     try:
         if blynk_client.check_connection():
             logger.info("[OK] Blynk Connected")
+
+            # Safe startup: reset Fan Manual button to AUTO/OFF
+            try:
+                blynk_client.update_pin(blynk_client.PINS["fan_manual"], 0)
+                runtime_settings["fan_manual"] = 0
+                logger.info("[INIT] Fan manual reset to AUTO/OFF")
+            except Exception as e:
+                logger.error(f"[INIT FAN RESET ERROR] {e}")
 
         if gemini_sleep.init_gemini():
             logger.info("[OK] Gemini Ready")
@@ -94,13 +93,10 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down server...")
 
 
-app = FastAPI(title="Sleep Optimizer API", version="3.1.0", lifespan=lifespan)
+app = FastAPI(title="Sleep Optimizer API", version="3.2.0", lifespan=lifespan)
 app.include_router(data_wiper.router)
 
 
-# ══════════════════════════════════════════════════════════════
-# Endpoints
-# ══════════════════════════════════════════════════════════════
 @app.get("/")
 def home():
     return {"message": "Sleep Optimizer API is Online"}
@@ -117,32 +113,25 @@ def receive_data(sensor_data: SensorData):
     if not data:
         raise HTTPException(status_code=400, detail="Empty data")
 
-    # Show fan status on Blynk dashboard
-    if "fan" in data:
-        fan_text = "Fan ON" if data["fan"] == 1 else "Fan OFF"
-        try:
-            blynk_client.update_pin(blynk_client.PINS["fan_status"], fan_text)
-        except Exception as e:
-            logger.error(f"[BLYNK FAN STATUS ERROR] {e}")
-
     return sensors.process(data, save_fn=save_sensor_data)
 
 
 @app.get("/settings")
 def get_settings():
     """Pi polls settings here."""
-    interval_raw = blynk_client.get_pin(blynk_client.PINS['interval'])
+    interval_raw = blynk_client.get_pin(blynk_client.PINS["interval"])
 
     interval = int(float(interval_raw)) if interval_raw else 5
     interval = max(5, min(300, interval))
 
-    # Read fan manual button from Blynk V24
+    fan_manual = runtime_settings["fan_manual"]
+
     try:
         fan_raw = blynk_client.get_pin(blynk_client.PINS["fan_manual"])
-        fan_manual = int(float(fan_raw)) if fan_raw is not None else runtime_settings["fan_manual"]
+        if fan_raw is not None:
+            fan_manual = int(float(fan_raw))
     except Exception as e:
         logger.error(f"[BLYNK FAN MANUAL ERROR] {e}")
-        fan_manual = runtime_settings["fan_manual"]
 
     runtime_settings["fan_manual"] = fan_manual
 
@@ -181,9 +170,6 @@ def server_status():
     }
 
 
-# ══════════════════════════════════════════════════════════════
-# Run
-# ══════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000)
