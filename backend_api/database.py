@@ -49,20 +49,23 @@ def save_sensor_data(data: dict):
         cursor.execute(
             """
             INSERT INTO sensor_data
-            (temperature, sound, light, dust, fan)
-            VALUES (%s, %s, %s, %s, %s)
+            (temperature, sound, light, dust, motion, fan)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """,
             (
                 data.get("temperature"),
                 data.get("sound"),
                 data.get("light"),
                 data.get("dust"),
+                data.get("motion"),
                 data.get("fan")
             )
         )
 
         conn.commit()
         cursor.close()
+
+        logger.info(f"[DB INSERT OK] motion={data.get('motion')} fan={data.get('fan')}")
 
     except Exception as e:
         logger.error(f"[DB INSERT ERROR] {e}")
@@ -122,6 +125,33 @@ def get_fan_usage():
     except Exception as e:
         logger.error(f"[DB FAN STATS ERROR] {e}")
         return {"fan_on_count": 0}
+
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_motion_usage():
+    """Calculate how many records detect motion."""
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM sensor_data WHERE motion = 1
+            """
+        )
+
+        result = cursor.fetchone()
+        cursor.close()
+
+        return {"motion_detected_count": result[0]}
+
+    except Exception as e:
+        logger.error(f"[DB MOTION STATS ERROR] {e}")
+        return {"motion_detected_count": 0}
 
     finally:
         if conn:
