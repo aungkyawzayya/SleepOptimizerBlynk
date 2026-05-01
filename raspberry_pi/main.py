@@ -12,6 +12,7 @@ try:
     from sensors.dust import read_dust, setup_dust
     from sensors.light import read_light, setup_light
     from sensors.fan import setup_fan, set_fan, cleanup_fan
+    from sensors.motion import read_motion, setup_motion
 except ImportError as e:
     print(f"Warning: Some sensor modules not found ({e}). Using dummy values.")
 
@@ -26,6 +27,8 @@ except ImportError as e:
     def setup_fan(): return True
     def set_fan(state): print(f"Dummy fan state: {state}")
     def cleanup_fan(): pass
+    def setup_motion(): return True
+    def read_motion(): return 0
 
 
 # --- LOGGING ---
@@ -42,7 +45,6 @@ DATA_ENDPOINT = f"{API_URL}/sensors/data"
 SETTINGS_ENDPOINT = f"{API_URL}/settings"
 
 DEFAULT_INTERVAL = int(os.getenv("DEFAULT_INTERVAL", "5"))
-#SETTINGS_REFRESH = int(os.getenv("SETTINGS_REFRESH", "10"))
 SETTINGS_REFRESH = int(os.getenv("SETTINGS_REFRESH", "1"))
 
 TEMP_ON_THRESHOLD = float(os.getenv("TEMP_ON_THRESHOLD", "26"))
@@ -76,7 +78,8 @@ def get_all_sensor_payload():
         "temperature": round(temp, 2) if temp is not None else 0.0,
         "sound": round(read_sound(), 2),
         "light": round(read_light(), 2),
-        "dust": round(read_dust(), 4)
+        "dust": round(read_dust(), 4),
+        "motion": int(read_motion())
     }
 
 
@@ -132,6 +135,9 @@ def format_payload_for_log(payload):
     if "fan" in display_payload:
         display_payload["fan"] = "ON" if display_payload["fan"] == 1 else "OFF"
 
+    if "motion" in display_payload:
+        display_payload["motion"] = "YES" if display_payload["motion"] == 1 else "NO"
+
     return " | ".join(
         [f"{k.capitalize()}: {v}" for k, v in display_payload.items()]
     )
@@ -146,6 +152,7 @@ def main():
     setup_dust()
     setup_light()
     setup_fan()
+    setup_motion()
 
     loop_count = 0
     interval = DEFAULT_INTERVAL

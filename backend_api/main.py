@@ -37,6 +37,7 @@ class SensorData(BaseModel):
     sound:       Optional[float] = None
     light:       Optional[float] = None
     dust:        Optional[float] = None
+    motion:      Optional[int]   = None
     fan:         Optional[int]   = None
 
 
