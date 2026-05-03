@@ -1,7 +1,7 @@
 """
-Fake Sensor Runner (Sprint 5 Updated)
+Fake Sensor Runner (Sprint 5 Synchronized)
 =====================================
-Synchronized with 4-sensor suite: Temp, Sound(0-100), Light(0-255), Dust(mg/m3).
+Synchronized with 5-sensor suite: Temp, Sound(0-100), Light(0-255), Dust(mg/m3), Motion(0/1).
 """
 
 import urllib.request
@@ -29,13 +29,15 @@ def main():
             count += 1
             d = data.get('data', {})
             
-            # 2. Updated Print Statement to match your 4-sensor project
+            # 2. Updated Print Statement to match your full 5-sensor project
+            motion_status = "Yes" if d.get('motion') == 1 else "No"
             print(
                 f"[{count}] Status: {data.get('status', 'OK')} | "
                 f"Temp: {d.get('temperature', 'N/A')}°C | "
                 f"Sound: {d.get('sound', 'N/A')}/100 | "
                 f"Light: {d.get('light', 'N/A')}/255 | "
-                f"Dust: {d.get('dust', 'N/A')} mg/m3"
+                f"Dust: {d.get('dust', 'N/A')} mg/m3 | "
+                f"Motion: {motion_status}"  # <-- ADDED MOTION HERE
             )
 
             # 3. AI Room Check - Update endpoint to match your AIAdvice logic
