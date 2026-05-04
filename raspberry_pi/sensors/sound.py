@@ -43,10 +43,8 @@ def read_sound():
 
         # Actual read
         analog_value = _bus.read_byte(I2C_ADDRESS)
-
-        # Normalize 0-255 to 0-100
-        normalized = round((analog_value / 255.0) * 100, 1)
-        return normalized
+       
+        return analog_value
     except Exception as e:
         print(f"Error reading sound sensor: {e}")
         return None
