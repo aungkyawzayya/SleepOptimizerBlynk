@@ -4,6 +4,9 @@ import json
 import logging
 import urllib.request
 import os
+import grpc
+import sensor_data_pb2
+import sensor_data_pb2_grpc
 
 # --- SENSOR IMPORTS ---
 try:
@@ -41,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
 API_URL = os.getenv("API_URL", "http://136.119.125.251:8000")
+GRPC_HOST = os.getenv("GRPC_HOST", "136.119.125.251:50051")
 DATA_ENDPOINT = f"{API_URL}/sensors/data"
 SETTINGS_ENDPOINT = f"{API_URL}/settings"
 
@@ -103,28 +107,22 @@ def decide_fan_state(temperature, fan_manual, previous_fan_state):
 
 
 def send_to_fastapi(payload):
-    """Send sensor data to FastAPI backend."""
+    """Send sensor data to gRPC backend (renamed to keep backwards compatibility in calling code)."""
     try:
-        data = json.dumps(payload).encode("utf-8")
-
-        req = urllib.request.Request(
-            DATA_ENDPOINT,
-            data=data,
-            headers={
-                "Content-Type": "application/json",
-                "User-Agent": "Pi-Collector"
-            },
-            method="POST"
-        )
-
-        proxy_handler = urllib.request.ProxyHandler({})
-        opener = urllib.request.build_opener(proxy_handler)
-
-        with opener.open(req, timeout=10) as response:
-            return json.loads(response.read().decode("utf-8"))
-
+        with grpc.insecure_channel(GRPC_HOST) as channel:
+            stub = sensor_data_pb2_grpc.SensorDataServiceStub(channel)
+            request = sensor_data_pb2.SensorDataRequest(
+                temperature=payload.get("temperature", 0.0),
+                sound=payload.get("sound", 0.0),
+                light=payload.get("light", 0.0),
+                dust=payload.get("dust", 0.0),
+                motion=payload.get("motion", 0),
+                fan=payload.get("fan", 0)
+            )
+            response = stub.SendSensorData(request, timeout=10)
+            return {"success": response.success, "message": response.message}
     except Exception as e:
-        logger.error(f"Connection Error: {e}")
+        logger.error(f"gRPC Connection Error: {e}")
         return None
 
 

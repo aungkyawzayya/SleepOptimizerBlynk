@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package sensors;
+
+service SensorDataService {
+  rpc SendSensorData(SensorDataRequest) returns (SensorDataResponse);
+}
+
+message SensorDataRequest {
+  float temperature = 1;
+  float sound = 2;
+  float light = 3;
+  float dust = 4;
+  int32 motion = 5;
+  int32 fan = 6;
+}
+
+message SensorDataResponse {
+  bool success = 1;
+  string message = 2;
+}
