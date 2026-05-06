@@ -1,12 +1,19 @@
 import asyncio
 import logging
+import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 import blynk_client
 from sensor_manager import SensorManager
 
-load_dotenv()
+# --- Robust .env Loading ---
+# This forces Python to look for .env in the same folder as main.py
+env_path = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
+# Initialize Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -18,17 +25,26 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 50)
     logger.info("Sleep Optimizer — System Starting")
     
+    # Debug: Confirm Token Visibility
+    token = os.getenv("BLYNK_AUTH_TOKEN")
+    if token:
+        # Log only the first 4 characters for security
+        logger.info(f"[DEBUG] Auth Token detected: {token[:4]}****")
+    else:
+        logger.error("[DEBUG] CRITICAL: Auth Token NOT found in environment!")
+
     # 1. Check Blynk Connectivity
+    # This uses the validated token to flip the dashboard to 'Online'
     if blynk_client.check_connection():
-        logger.info("[OK] Blynk Token Validated")
+        logger.info("[OK] Blynk Token Validated & Dashboard Online")
     else:
         logger.error("[CRITICAL] Blynk Token Invalid or Server Unreachable")
 
     # 2. Start Background Workers
-    # This loop runs constantly. If sensors.is_fake() is True, it generates data.
-    # If False, it waits for data posts from your real Raspberry Pi.
+    # Generates fake data for testing as seen in your Sleep Optimizer project
     asyncio.create_task(sensors.fake_data_loop())
-    asyncio.create_task(sensors.poll_mode()) # Watches Blynk switch for Real/Fake toggle
+    # Periodically polls Blynk to switch between Fake API and Real Pi
+    asyncio.create_task(sensors.poll_mode()) 
     
     yield
     logger.info("System Shutting Down...")
