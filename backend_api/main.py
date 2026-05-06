@@ -60,3 +60,15 @@ def get_status():
         "mode": "Fake API" if sensors.is_fake() else "Raspberry Pi",
         "latest_readings": sensors.latest_data
     }
+
+# --- NEW ENDPOINT ADDED BELOW ---
+@app.get("/sensors/settings")
+def get_sensor_settings():
+    """
+    Provides the Raspberry Pi with its current operating configuration.
+    """
+    return {
+        "power": "ON",
+        "interval": 5,
+        "fan_manual": "OFF"
+    }
