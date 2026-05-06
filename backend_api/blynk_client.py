@@ -8,7 +8,7 @@ import socket
 from pathlib import Path
 from dotenv import load_dotenv
 
-# --- Critical: Load .env at the module level ---
+# Load .env from the current directory
 env_path = Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
@@ -19,25 +19,25 @@ BLYNK_AUTH = os.getenv("BLYNK_AUTH_TOKEN", "").strip()
 BLYNK_SERVER = os.getenv("BLYNK_SERVER", "blynk.cloud").strip()
 BLYNK_BASE_URL = f"https://{BLYNK_SERVER}/external/api"
 
-# Complete Pin Mapping based on your Sleep Optimizer template
+# Full Pin Mapping
 PINS = {
     "temperature": 0, "humidity": 1, "co2": 2, "sound": 3,
     "light": 4, "dust": 5, "motion": 6, "sleep_score": 8,
     "ai_advice": 9, "morning_rpt": 10, "sleep_status": 11, "power": 12,
     "interval": 13, "morning_trigger": 14, 
-    "data_source": 15,  # V15 toggle in your dashboard
+    "data_source": 15,  
     "room_check_trigger": 16,
     "reset_trigger": 17, "morning_summary": 18, "morning_tips": 19,
     "fan_manual": 24, "fan_status": 25,
 }
 
 def check_connection() -> bool:
-    """Validates if the Auth Token is accepted by the Blynk Cloud."""
+    """Validates connectivity by attempting to get the value of V13."""
     if not BLYNK_AUTH: 
-        logger.error("[BLYNK] No Auth Token found in environment")
         return False
     
-    url = f"{BLYNK_BASE_URL}/isServerAlive?token={BLYNK_AUTH}"
+    # Using 'get' instead of 'isServerAlive' to avoid 404 errors
+    url = f"{BLYNK_BASE_URL}/get?token={BLYNK_AUTH}&V13"
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
             return response.getcode() == 200
@@ -67,3 +67,15 @@ def get_pin(pin: int):
     except Exception as e:
         logger.error(f"[BLYNK] Failed to get V{pin}: {e}")
         return None
+
+def send_sensor_data(data: dict) -> bool:
+    """
+    NEW: This function iterates through sensor data and updates Blynk.
+    Fixes the 'no attribute send_sensor_data' error.
+    """
+    success = True
+    for key, val in data.items():
+        if key in PINS:
+            if not update_pin(PINS[key], val):
+                success = False
+    return success
