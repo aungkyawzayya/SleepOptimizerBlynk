@@ -8,8 +8,9 @@ import socket
 
 logger = logging.getLogger(__name__)
 
+# Use the global blynk.cloud to ensure regional routing works for New Zealand
 BLYNK_AUTH = os.getenv("BLYNK_AUTH_TOKEN", "").strip()
-BLYNK_SERVER = os.getenv("BLYNK_SERVER", "ny3.blynk.cloud").strip()
+BLYNK_SERVER = os.getenv("BLYNK_SERVER", "blynk.cloud").strip()
 BLYNK_BASE_URL = f"https://{BLYNK_SERVER}/external/api"
 
 PINS = {
@@ -18,8 +19,6 @@ PINS = {
     "ai_advice": 9, "morning_rpt": 10, "sleep_status": 11, "power": 12,
     "interval": 13, "morning_trigger": 14, "data_source": 15, "room_check_trigger": 16,
     "reset_trigger": 17, "morning_summary": 18, "morning_tips": 19,
-
-    # ✅ NEW (only added)
     "fan_manual": 24,
     "fan_status": 25,
 }
@@ -28,14 +27,26 @@ def _has_auth() -> bool:
     return bool(BLYNK_AUTH)
 
 def check_connection() -> bool:
-    if not _has_auth(): return False
+    if not _has_auth(): 
+        logger.warning("[BLYNK] No Auth Token found in environment.")
+        return False
     url = f"{BLYNK_BASE_URL}/isHardwareConnected?token={BLYNK_AUTH}"
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
             body = response.read().decode().strip().lower()
             return body == "true"
-    except (urllib.error.URLError, socket.timeout) as e:
+    except Exception as e:
         logger.error(f"[BLYNK] check_connection error: {e}")
+        return False
+
+def update_pin(pin: int, value) -> bool:
+    if not _has_auth() or value is None: return False
+    url = f"{BLYNK_BASE_URL}/update?token={BLYNK_AUTH}&V{pin}={urllib.parse.quote(str(value))}"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            return True
+    except Exception as e:
+        logger.error(f"[BLYNK] update_pin(V{pin}) error: {e}")
         return False
 
 def get_pin(pin: int):
@@ -45,37 +56,6 @@ def get_pin(pin: int):
         with urllib.request.urlopen(url, timeout=5) as response:
             data = json.loads(response.read().decode())
             return data[0] if isinstance(data, list) else data
-    except (urllib.error.URLError, socket.timeout, json.JSONDecodeError) as e:
+    except Exception as e:
         logger.error(f"[BLYNK] get_pin(V{pin}) error: {e}")
         return None
-
-def update_pin(pin: int, value) -> bool:
-    if not _has_auth() or value is None: return False
-    url = f"{BLYNK_BASE_URL}/update?token={BLYNK_AUTH}&V{pin}={urllib.parse.quote(str(value))}"
-    try:
-        with urllib.request.urlopen(url, timeout=5) as response:
-            return True
-    except (urllib.error.URLError, socket.timeout) as e:
-        logger.error(f"[BLYNK] update_pin(V{pin}) error: {e}")
-        return False
-
-def send_sensor_data(data: dict) -> bool:
-    """Maps dictionary keys to Blynk Pins and sends them."""
-    success = True
-    for key, pin in PINS.items():
-        if key in data and data[key] is not None:
-            if not update_pin(pin, data[key]):
-                success = False
-    return success
-
-def update_property(pin: int, prop: str, value: str) -> bool:
-    """Updates widget properties like color or label."""
-    if not _has_auth(): return False
-    params = {"token": BLYNK_AUTH, "pin": f"V{pin}", prop: value}
-    url = f"{BLYNK_BASE_URL}/update/property?{urllib.parse.urlencode(params)}"
-    try:
-        with urllib.request.urlopen(url, timeout=5) as response:
-            return True
-    except (urllib.error.URLError, socket.timeout) as e:
-        logger.error(f"[BLYNK] update_property(V{pin}, {prop}) error: {e}")
-        return False

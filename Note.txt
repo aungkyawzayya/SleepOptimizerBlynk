@@ -47,3 +47,14 @@ cd /Users/aungzayya/Desktop/SleepOptimizerBlynk
 git add .
 git commit -m "Your message here"
 git push origin main
+
+
+--------------
+FastAPI in the background:
+cd SleepOptimizerBlynk
+cd backend_api
+nohup uvicorn main:app --host 0.0.0.0 --port 8000 > fastapi.log 2>&1 &
+
+cd SleepOptimizerBlynk
+cd backend_api
+nohup python3 grpc_server.py > grpc.log 2>&1 &
