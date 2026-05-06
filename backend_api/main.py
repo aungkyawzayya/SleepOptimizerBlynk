@@ -61,11 +61,12 @@ def get_status():
         "latest_readings": sensors.latest_data
     }
 
-# --- NEW ENDPOINT ADDED BELOW ---
-@app.get("/sensors/settings")
+# --- Fixed Settings Endpoint ---
+@app.get("/settings")
 def get_sensor_settings():
     """
     Provides the Raspberry Pi with its current operating configuration.
+    Matches the Pi's request for SERVER_URL + "/settings"
     """
     return {
         "power": "ON",
