@@ -8,7 +8,6 @@ from fastapi import FastAPI
 import blynk_client
 from sensor_manager import SensorManager
 
-# --- Robust .env Loading ---
 env_path = Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
@@ -19,64 +18,29 @@ sensors = SensorManager(max_history=100)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("=" * 50)
-    logger.info("Sleep Optimizer — System Starting")
-    
-    # Debug: Confirm Token Visibility
-    token = os.getenv("BLYNK_AUTH_TOKEN")
-    if token:
-        logger.info(f"[DEBUG] Auth Token detected: {token[:4]}****")
-    else:
-        logger.error("[DEBUG] CRITICAL: Auth Token NOT found in environment!")
-
-    # 1. Check Blynk Connectivity
-    if blynk_client.check_connection():
-        logger.info("[OK] Blynk Token Validated & Dashboard Online")
-    else:
-        logger.error("[CRITICAL] Blynk Token Invalid or Server Unreachable")
-
-    # 2. Start Background Workers
+    logger.info("Sleep Optimizer API Starting")
+    blynk_client.check_connection()
+    # These tasks handle the internal state/fake data if no real Pi is connected
     asyncio.create_task(sensors.fake_data_loop())
     asyncio.create_task(sensors.poll_mode()) 
-    
     yield
-    logger.info("System Shutting Down...")
 
-app = FastAPI(title="Sleep Optimizer Dual-Mode API", lifespan=lifespan)
-
-@app.post("/sensors/data")
-async def receive_real_data(data: dict):
-    """
-    Receives physical sensor data from the Raspberry Pi.
-    """
-    # This log will show up in your VM's api.log
-    logger.info(f"===> DATA RECEIVED FROM PI: {data}")
-    
-    if not sensors.is_fake():
-        sensors.process(data)
-        for key, val in data.items():
-            if key in blynk_client.PINS:
-                # Use update_pin to push data to the Blynk dashboard
-                blynk_client.update_pin(blynk_client.PINS[key], val)
-        return {"status": "Real data processed"}
-    
-    logger.warning("Data received but system is in 'Fake Mode'.")
-    return {"status": "System in Fake Mode"}
-
-@app.get("/status")
-def get_status():
-    return {
-        "mode": "Fake API" if sensors.is_fake() else "Raspberry Pi",
-        "latest_readings": sensors.latest_data
-    }
+app = FastAPI(title="Sleep Optimizer HTTP Control", lifespan=lifespan)
 
 @app.get("/settings")
 def get_sensor_settings():
     """
-    Provides the Raspberry Pi with its current operating configuration.
+    HTTP Endpoint for the Pi to fetch its configuration.
     """
     return {
         "power": "ON",
-        "interval": 5,
+        "interval": 5, 
         "fan_manual": "OFF"
+    }
+
+@app.get("/status")
+def get_status():
+    return {
+        "mode": "Raspberry Pi" if not sensors.is_fake() else "Fake Mode",
+        "data": sensors.latest_data
     }
