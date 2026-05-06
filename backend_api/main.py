@@ -8,35 +8,37 @@ from google import genai
 import blynk_client
 from database import get_recent_sensor_data
 
-# 1. Load environment variables IMMEDIATELY
+# 1. Load environment variables
 env_path = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(env_path)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# 2. Initialize Gemini Client with explicit key check
+# 2. Initialize Gemini Client with explicit API Version v1
+# This prevents the 404 error you saw earlier
 api_key = os.getenv("GOOGLE_API_KEY")
 if not api_key:
-    logger.error("CRITICAL: GOOGLE_API_KEY not found in environment!")
+    logger.error("CRITICAL: GOOGLE_API_KEY not found in .env!")
     client = None
 else:
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(
+        api_key=api_key,
+        http_options={'api_version': 'v1'}
+    )
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Sleep Optimizer HTTP Gateway Online")
+    logger.info("Sleep Optimizer Online")
     asyncio.create_task(keep_blynk_alive())
     yield
 
 async def keep_blynk_alive():
-    """Heartbeat to keep Blynk dashboard 'Online' status green."""
     while True:
-        # Pinging V0 as heartbeat
         blynk_client.update_pin("V0", 1) 
         await asyncio.sleep(30)
 
-app = FastAPI(title="Sleep Optimizer AI API", lifespan=lifespan)
+app = FastAPI(title="Sleep Optimizer AI", lifespan=lifespan)
 
 @app.get("/settings")
 def get_sensor_settings():
@@ -44,39 +46,38 @@ def get_sensor_settings():
 
 @app.post("/analyze")
 async def trigger_room_check():
-    logger.info("AI Analysis Triggered via Dashboard")
+    logger.info("AI Analysis Triggered")
     
     if client is None:
-        error_msg = "AI Error: API Key Missing"
-        blynk_client.update_pin("V7", error_msg)
-        return {"status": "error", "message": error_msg}
+        blynk_client.update_pin("V7", "Error: No API Key")
+        return {"status": "error", "message": "API Key Missing"}
 
     try:
-        # Fetch data for analysis (retrieved from your MySQL DB)
+        # Fetch data from your MySQL database
         raw_data = get_recent_sensor_data(limit=10)
         
         if not raw_data:
-            blynk_client.update_pin("V7", "No recent sensor data found.")
+            blynk_client.update_pin("V7", "Error: No Sensor Data")
             return {"status": "error", "message": "No data in DB"}
 
-        # Prepare summary for Gemini
         data_summary = str(raw_data)
         
-        # Call the STABLE Gemini 1.5 Flash model
+        # 3. Call Gemini using the FULL model path
+        # Using 'models/gemini-1.5-flash' ensures it is found
         response = client.models.generate_content(
-            model='gemini-1.5-flash', 
-            contents=f"As a sleep expert, analyze this sensor data and give a 1-sentence advice for better sleep: {data_summary}"
+            model='models/gemini-1.5-flash', 
+            contents=f"As a sleep expert, analyze this data in one short sentence: {data_summary}"
         )
         
         report = response.text.strip()
 
-        # Push the AI report to Blynk V7 to clear the 'ANALYZING...' hang
+        # Update Blynk V7 to clear the 'ANALYZING...' text
         blynk_client.update_pin("V7", report)
-        logger.info(f"AI Report Sent: {report}")
+        logger.info(f"AI Success: {report}")
         
         return {"status": "success", "report": report}
 
     except Exception as e:
-        logger.error(f"Gemini API Failure: {e}")
-        blynk_client.update_pin("V7", "AI Service Busy. Please try again.")
+        logger.error(f"Gemini Failure: {e}")
+        blynk_client.update_pin("V7", "AI Service Error. Try again.")
         return {"status": "error", "message": str(e)}
