@@ -42,7 +42,7 @@ async def trigger_room_check():
         
         # 3. Call Gemini using the NEW SDK
         response = client.models.generate_content(
-            model='gemini-2.0-flash', 
+            model='gemini-1.5-flash', 
             contents=f"As a sleep expert, analyze this sensor data and give a 1-sentence advice: {data_summary}"
         )
         
