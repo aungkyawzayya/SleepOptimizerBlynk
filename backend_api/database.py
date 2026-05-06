@@ -12,9 +12,10 @@ logger = logging.getLogger(__name__)
 
 def get_connection():
     """Create and return a new database connection."""
+    # Updated default to 'lisa' to match VM configuration
     return mysql.connector.connect(
         host=os.getenv("DB_HOST", "127.0.0.1"),
-        user=os.getenv("DB_USER", "root"),
+        user=os.getenv("DB_USER", "lisa"), 
         password=os.getenv("DB_PASSWORD", ""),
         database=os.getenv("DB_NAME", "sleep_optimizer")
     )
@@ -26,7 +27,7 @@ def truncate_sensor_data():
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM sensor_data")
+        cursor.execute("TRUNCATE TABLE sensor_data") # Changed to TRUNCATE to reset IDs
         conn.commit()
         cursor.close()
         logger.info("[DB] sensor_data table cleared.")
@@ -70,6 +71,29 @@ def save_sensor_data(data: dict):
     except Exception as e:
         logger.error(f"[DB INSERT ERROR] {e}")
 
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_recent_sensor_data(limit=20):
+    """
+    Fetches the most recent sensor readings for AI analysis.
+    This fixes the ImportError in main.py.
+    """
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        # Use created_at if available, otherwise order by ID
+        query = "SELECT * FROM sensor_data ORDER BY id DESC LIMIT %s"
+        cursor.execute(query, (limit,))
+        result = cursor.fetchall()
+        cursor.close()
+        return result
+    except Exception as e:
+        logger.error(f"[DB RETRIEVAL ERROR] {e}")
+        return []
     finally:
         if conn:
             conn.close()
