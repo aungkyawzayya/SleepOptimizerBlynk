@@ -46,12 +46,21 @@ app = FastAPI(title="Sleep Optimizer Dual-Mode API", lifespan=lifespan)
 
 @app.post("/sensors/data")
 async def receive_real_data(data: dict):
+    """
+    Receives physical sensor data from the Raspberry Pi.
+    """
+    # This log will show up in your VM's api.log
+    logger.info(f"===> DATA RECEIVED FROM PI: {data}")
+    
     if not sensors.is_fake():
         sensors.process(data)
         for key, val in data.items():
             if key in blynk_client.PINS:
+                # Use update_pin to push data to the Blynk dashboard
                 blynk_client.update_pin(blynk_client.PINS[key], val)
         return {"status": "Real data processed"}
+    
+    logger.warning("Data received but system is in 'Fake Mode'.")
     return {"status": "System in Fake Mode"}
 
 @app.get("/status")
@@ -61,12 +70,10 @@ def get_status():
         "latest_readings": sensors.latest_data
     }
 
-# --- Fixed Settings Endpoint ---
 @app.get("/settings")
 def get_sensor_settings():
     """
     Provides the Raspberry Pi with its current operating configuration.
-    Matches the Pi's request for SERVER_URL + "/settings"
     """
     return {
         "power": "ON",
