@@ -18,29 +18,24 @@ sensors = SensorManager(max_history=100)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Sleep Optimizer API Starting")
+    logger.info("Sleep Optimizer HTTP API Starting")
     blynk_client.check_connection()
-    # These tasks handle the internal state/fake data if no real Pi is connected
-    asyncio.create_task(sensors.fake_data_loop())
-    asyncio.create_task(sensors.poll_mode()) 
+    # Pings Blynk every 30s so the dashboard status stays 'Online'
+    asyncio.create_task(keep_blynk_alive())
     yield
 
-app = FastAPI(title="Sleep Optimizer HTTP Control", lifespan=lifespan)
+async def keep_blynk_alive():
+    while True:
+        # Update a heartbeat pin (V0) to show the system is active
+        blynk_client.update_pin("V0", 1) 
+        await asyncio.sleep(30)
+
+app = FastAPI(title="Sleep Optimizer Control", lifespan=lifespan)
 
 @app.get("/settings")
 def get_sensor_settings():
-    """
-    HTTP Endpoint for the Pi to fetch its configuration.
-    """
     return {
-        "power": "ON",
-        "interval": 5, 
-        "fan_manual": "OFF"
-    }
-
-@app.get("/status")
-def get_status():
-    return {
-        "mode": "Raspberry Pi" if not sensors.is_fake() else "Fake Mode",
-        "data": sensors.latest_data
+        "power": 1,
+        "interval": 5,
+        "fan_manual": 1
     }
