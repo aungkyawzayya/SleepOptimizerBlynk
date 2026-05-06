@@ -18,7 +18,7 @@ sensors = SensorManager(max_history=100)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Sleep Optimizer HTTP API Starting")
+    logger.info("Sleep Optimizer HTTP Gateway Online")
     blynk_client.check_connection()
     # Pings Blynk every 30s so the dashboard status stays 'Online'
     asyncio.create_task(keep_blynk_alive())
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 
 async def keep_blynk_alive():
     while True:
-        # Update a heartbeat pin (V0) to show the system is active
+        # Pinging V0 acts as a heartbeat for the Blynk server
         blynk_client.update_pin("V0", 1) 
         await asyncio.sleep(30)
 
