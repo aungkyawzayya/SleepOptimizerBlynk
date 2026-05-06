@@ -53,8 +53,12 @@ git push origin main
 FastAPI in the background:
 cd SleepOptimizerBlynk
 cd backend_api
+
+pkill -f uvicorn
 nohup uvicorn main:app --host 0.0.0.0 --port 8000 > fastapi.log 2>&1 &
 
 cd SleepOptimizerBlynk
 cd backend_api
+
+pkill -f grpc_server.py
 nohup python3 grpc_server.py > grpc.log 2>&1 &

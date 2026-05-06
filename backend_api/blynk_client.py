@@ -1,81 +1,51 @@
-import os
-import json
-import logging
 import urllib.request
-import urllib.parse
-import urllib.error
-import socket
-from pathlib import Path
-from dotenv import load_dotenv
-
-# Load .env from the current directory
-env_path = Path(__file__).parent / ".env"
-load_dotenv(dotenv_path=env_path)
+import logging
+import os
 
 logger = logging.getLogger(__name__)
 
-# Core Config
-BLYNK_AUTH = os.getenv("BLYNK_AUTH_TOKEN", "").strip()
-BLYNK_SERVER = os.getenv("BLYNK_SERVER", "blynk.cloud").strip()
-BLYNK_BASE_URL = f"https://{BLYNK_SERVER}/external/api"
+# Replace with your actual Blynk Auth Token
+BLYNK_AUTH_TOKEN = os.getenv("BLYNK_AUTH_TOKEN", "your_token_here")
+BLYNK_URL = "https://sgp1.blynk.cloud/external/api"
 
-# Full Pin Mapping
+# Pin Mapping
 PINS = {
-    "temperature": 0, "humidity": 1, "co2": 2, "sound": 3,
-    "light": 4, "dust": 5, "motion": 6, "sleep_score": 8,
-    "ai_advice": 9, "morning_rpt": 10, "sleep_status": 11, "power": 12,
-    "interval": 13, "morning_trigger": 14, 
-    "data_source": 15,  
-    "room_check_trigger": 16,
-    "reset_trigger": 17, "morning_summary": 18, "morning_tips": 19,
-    "fan_manual": 24, "fan_status": 25,
+    "status": "V0",
+    "temperature": "V1",
+    "sound": "V2",
+    "light": "V3",
+    "dust": "V4",
+    "motion": "V5",
+    "fan": "V6",
+    "ai_report": "V7"  # Pin for the AI analysis text
 }
 
-def check_connection() -> bool:
-    """Validates connectivity by attempting to get the value of V13."""
-    if not BLYNK_AUTH: 
-        return False
-    
-    # Using 'get' instead of 'isServerAlive' to avoid 404 errors
-    url = f"{BLYNK_BASE_URL}/get?token={BLYNK_AUTH}&V13"
+def update_pin(pin_name, value):
     try:
-        with urllib.request.urlopen(url, timeout=5) as response:
-            return response.getcode() == 200
-    except Exception as e:
-        logger.error(f"[BLYNK] Connection test failed: {e}")
-        return False
+        # Clean the pin name to prevent "VV0" errors
+        # If 'V0' is passed, clean_pin becomes '0'
+        clean_pin = str(pin_name).replace("V", "")
+        
+        url = f"{BLYNK_URL}/update?token={BLYNK_AUTH_TOKEN}&V{clean_pin}={value}"
+        
+        # For long strings (AI reports), we must encode the URL
+        if isinstance(value, str):
+            value_encoded = urllib.parse.quote(value)
+            url = f"{BLYNK_URL}/update?token={BLYNK_AUTH_TOKEN}&V{clean_pin}={value_encoded}"
 
-def update_pin(pin: int, value) -> bool:
-    """Pushes a value to a specific Virtual Pin."""
-    if not BLYNK_AUTH or value is None: return False
-    url = f"{BLYNK_BASE_URL}/update?token={BLYNK_AUTH}&V{pin}={urllib.parse.quote(str(value))}"
-    try:
-        with urllib.request.urlopen(url, timeout=5) as response:
-            return True
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=5) as response:
+            if response.getcode() == 200:
+                return True
     except Exception as e:
-        logger.error(f"[BLYNK] Failed to update V{pin}: {e}")
+        logger.error(f"[BLYNK] Failed to update V{clean_pin}: {e}")
         return False
 
-def get_pin(pin: int):
-    """Retrieves a value from a specific Virtual Pin."""
-    if not BLYNK_AUTH: return None
-    url = f"{BLYNK_BASE_URL}/get?token={BLYNK_AUTH}&V{pin}"
+def check_connection():
+    # Simple check to see if the token is valid
+    url = f"{BLYNK_URL}/isHardwareConnected?token={BLYNK_AUTH_TOKEN}"
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
-            data = json.loads(response.read().decode())
-            return data[0] if isinstance(data, list) else data
-    except Exception as e:
-        logger.error(f"[BLYNK] Failed to get V{pin}: {e}")
-        return None
-
-def send_sensor_data(data: dict) -> bool:
-    """
-    NEW: This function iterates through sensor data and updates Blynk.
-    Fixes the 'no attribute send_sensor_data' error.
-    """
-    success = True
-    for key, val in data.items():
-        if key in PINS:
-            if not update_pin(PINS[key], val):
-                success = False
-    return success
+            return response.read().decode() == 'true'
+    except:
+        return False
