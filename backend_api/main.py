@@ -48,6 +48,7 @@ async def trigger_room_check():
         raw_data = get_recent_sensor_data(limit=10)
         if not raw_data:
             blynk_client.update_pin("V9", "No sensor data found.")
+            await asyncio.sleep(0.5)
             blynk_client.update_pin("V16", 0) # Reset button
             return {"status": "error"}
 
@@ -59,6 +60,7 @@ async def trigger_room_check():
 
         # Update Advice and Reset Button
         blynk_client.update_pin("V9", report)
+        await asyncio.sleep(0.5) # Safety delay for Blynk UI
         blynk_client.update_pin("V16", 0) 
         
         logger.info(f"Room Check Success: {report}")
@@ -67,10 +69,11 @@ async def trigger_room_check():
     except Exception as e:
         logger.error(f"Room Check Error: {e}")
         blynk_client.update_pin("V9", "AI Error. Try again.")
+        await asyncio.sleep(0.5)
         blynk_client.update_pin("V16", 0)
         return {"status": "error"}
 
-# --- ENDPOINT 2: MORNING REPORT (V14 -> V10, V18, V19) ---
+# --- ENDPOINT 2: MORNING REPORT (V14 -> V10) ---
 @app.post("/morning_report")
 async def trigger_morning_report():
     logger.info("Morning Report Generation Triggered")
@@ -81,6 +84,7 @@ async def trigger_morning_report():
         
         if not raw_data:
             blynk_client.update_pin("V10", "Error: No data.")
+            await asyncio.sleep(0.5)
             blynk_client.update_pin("V14", 0) # Reset button
             return {"status": "error"}
 
@@ -94,12 +98,11 @@ async def trigger_morning_report():
         response = model.generate_content(prompt)
         full_report = response.text.strip()
 
-        # Update Blynk Datastreams
-        # V10 = Main Report, V18 = Summary, V19 = Tips (if you have split them)
-        # For now, let's put the full report into V10
+        # Update Blynk Datastream
         blynk_client.update_pin("V10", full_report)
         
         # Reset the "Generating" Button (V14)
+        await asyncio.sleep(0.5) # Safety delay for Blynk UI
         blynk_client.update_pin("V14", 0)
         
         logger.info("Morning Report Success")
@@ -107,5 +110,6 @@ async def trigger_morning_report():
 
     except Exception as e:
         logger.error(f"Morning Report Error: {e}")
+        await asyncio.sleep(0.5)
         blynk_client.update_pin("V14", 0)
         return {"status": "error"}
