@@ -4,56 +4,59 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-# Load token from .env
+# Retrieve the token securely from the environment
 BLYNK_AUTH_TOKEN = os.getenv("BLYNK_AUTH_TOKEN")
+BLYNK_BASE_URL = "https://blynk.cloud/external/api/update"
 
-# Use the global URL. The 'requests' library will automatically follow 
-# the 308 Redirect to sgp1 (Singapore) or whichever server you are on.
-BLYNK_URL = "https://blynk.cloud/external/api"
-
-# Pin Mapping
+# --- THE CORRECTED PIN MAP ---
+# Mapped exactly to your Blynk Web Console Datastreams
 PINS = {
-    "status": "V0",
-    "temperature": "V1",
-    "sound": "V2",
-    "light": "V3",
-    "dust": "V4",
-    "motion": "V5",
-    "fan": "V6",
-    "ai_report": "V7"
+    "temperature": "V0",
+    "sound": "V3",
+    "light": "V4",
+    "dust": "V5",
+    "motion": "V6",
+    "fan": "V24",      # Fan Power Trigger
+    "ai_report": "V9", # AI Advice
+    "status": "V11"    # Sleep Status
 }
 
-def update_pin(pin_name, value):
+def update_pin(pin, value):
+    """
+    Sends a single pin update to Blynk using the robust 'requests' library.
+    """
+    if not BLYNK_AUTH_TOKEN:
+        logger.error("CRITICAL: BLYNK_AUTH_TOKEN is missing!")
+        return False
+        
+    url = f"{BLYNK_BASE_URL}?token={BLYNK_AUTH_TOKEN}&{pin}={value}"
+    
     try:
-        # Clean the pin name to prevent "VV0" errors
-        clean_pin = str(pin_name).replace("V", "")
-        url = f"{BLYNK_URL}/update"
+        # Using requests handles any background redirects gracefully
+        response = requests.get(url, timeout=5)
         
-        # 'params' dictionary automatically safely encodes long AI strings
-        payload = {
-            "token": BLYNK_AUTH_TOKEN,
-            f"V{clean_pin}": value
-        }
-
-        # requests.get automatically follows 308 redirects!
-        response = requests.get(url, params=payload, timeout=5)
-        
-        if response.status_code == 200:
-            return True
-        else:
-            logger.error(f"[BLYNK] HTTP Error {response.status_code} on V{clean_pin}: {response.text}")
+        if response.status_code != 200:
+            logger.error(f"[BLYNK] HTTP Error {response.status_code} on {pin}: {response.text}")
             return False
+        return True
             
     except Exception as e:
-        logger.error(f"[BLYNK] Failed to update V{pin_name}: {e}")
+        logger.error(f"[BLYNK] Connection failed for {pin}: {e}")
         return False
 
-def check_connection():
-    url = f"{BLYNK_URL}/isHardwareConnected"
-    payload = {"token": BLYNK_AUTH_TOKEN}
-    try:
-        response = requests.get(url, params=payload, timeout=5)
-        return response.text.strip().lower() == 'true'
-    except Exception as e:
-        logger.error(f"[BLYNK] Connection check failed: {e}")
-        return False
+def sync_data_to_blynk(sensor_data):
+    """
+    Takes the incoming gRPC dictionary, matches it to the right pins, 
+    and fires the updates to the Blynk dashboard.
+    """
+    success = False
+    
+    for key, value in sensor_data.items():
+        if key in PINS:
+            pin = PINS[key]
+            if update_pin(pin, value):
+                success = True
+                
+    if success:
+        # This will print the success message you see in your gRPC logs
+        logger.info(f"gRPC Data Synced to Blynk: {sensor_data.get('temperature', 'N/A')}C")
