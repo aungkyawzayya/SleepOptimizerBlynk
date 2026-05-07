@@ -39,39 +39,73 @@ app = FastAPI(title="Sleep Optimizer AI", lifespan=lifespan)
 def get_sensor_settings():
     return {"power": 1, "interval": 5, "fan_manual": 1}
 
+# --- ENDPOINT 1: QUICK ROOM CHECK (V16 -> V9) ---
 @app.post("/analyze")
 async def trigger_room_check():
-    logger.info("AI Analysis Triggered")
+    logger.info("AI Room Check Triggered")
     
-    if not api_key:
-        blynk_client.update_pin("V9", "Error: No API Key")
-        return {"status": "error", "message": "API Key Missing"}
-
     try:
-        # Fetch data from your MySQL database
         raw_data = get_recent_sensor_data(limit=10)
-        
         if not raw_data:
-            blynk_client.update_pin("V9", "Error: No Sensor Data")
-            return {"status": "error", "message": "No data in DB"}
+            blynk_client.update_pin("V9", "No sensor data found.")
+            blynk_client.update_pin("V16", 0) # Reset button
+            return {"status": "error"}
 
-        data_summary = str(raw_data)
-        
-        # 3. Call Gemini using your approved 2.5 Flash model
         model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content(
-            f"As a sleep expert, analyze this data in one short sentence: {data_summary}"
+            f"Analyze this current sleep environment data briefly: {raw_data}"
         )
-        
         report = response.text.strip()
 
-        # Update Blynk V9 (AI Advice)
+        # Update Advice and Reset Button
         blynk_client.update_pin("V9", report)
-        logger.info(f"AI Success: {report}")
+        blynk_client.update_pin("V16", 0) 
         
-        return {"status": "success", "report": report}
+        logger.info(f"Room Check Success: {report}")
+        return {"status": "success"}
 
     except Exception as e:
-        logger.error(f"Gemini Failure: {e}")
-        blynk_client.update_pin("V9", "AI Service Error. Try again.")
-        return {"status": "error", "message": str(e)}
+        logger.error(f"Room Check Error: {e}")
+        blynk_client.update_pin("V9", "AI Error. Try again.")
+        blynk_client.update_pin("V16", 0)
+        return {"status": "error"}
+
+# --- ENDPOINT 2: MORNING REPORT (V14 -> V10, V18, V19) ---
+@app.post("/morning_report")
+async def trigger_morning_report():
+    logger.info("Morning Report Generation Triggered")
+    
+    try:
+        # Fetch a larger window for the morning report (last 100 entries)
+        raw_data = get_recent_sensor_data(limit=100)
+        
+        if not raw_data:
+            blynk_client.update_pin("V10", "Error: No data.")
+            blynk_client.update_pin("V14", 0) # Reset button
+            return {"status": "error"}
+
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        prompt = (
+            f"Review this overnight sensor data: {raw_data}. "
+            "Provide a detailed 'Morning Report' including a summary of sleep quality, "
+            "a technical summary of environment changes, and 3 specific improvement tips."
+        )
+        
+        response = model.generate_content(prompt)
+        full_report = response.text.strip()
+
+        # Update Blynk Datastreams
+        # V10 = Main Report, V18 = Summary, V19 = Tips (if you have split them)
+        # For now, let's put the full report into V10
+        blynk_client.update_pin("V10", full_report)
+        
+        # Reset the "Generating" Button (V14)
+        blynk_client.update_pin("V14", 0)
+        
+        logger.info("Morning Report Success")
+        return {"status": "success"}
+
+    except Exception as e:
+        logger.error(f"Morning Report Error: {e}")
+        blynk_client.update_pin("V14", 0)
+        return {"status": "error"}
