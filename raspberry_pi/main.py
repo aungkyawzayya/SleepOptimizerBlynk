@@ -76,8 +76,21 @@ def main():
             with grpc.insecure_channel(GRPC_HOST) as channel:
                 stub = sensor_data_pb2_grpc.SensorDataServiceStub(channel)
                 req = sensor_data_pb2.SensorDataRequest(**payload)
-                stub.SendSensorData(req, timeout=5)
-                logger.info(f"gRPC Sent OK >> {payload['temperature']}C")
+                
+                # UPDATED: 15-second timeout to prevent DEADLINE_EXCEEDED errors
+                stub.SendSensorData(req, timeout=15)
+                
+                # UPDATED: Expanded logger to show all sensor values clearly
+                logger.info(
+                    f"gRPC Sent OK >> "
+                    f"Temp: {payload['temperature']}°C | "
+                    f"Sound: {payload['sound']} | "
+                    f"Light: {payload['light']} | "
+                    f"Dust: {payload['dust']} | "
+                    f"Motion: {payload['motion']} | "
+                    f"Fan: {payload['fan']}"
+                )
+                
         except Exception as e:
             logger.error(f"gRPC Fail: {e}")
 
