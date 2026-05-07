@@ -57,8 +57,8 @@ async def trigger_room_check():
 
         data_summary = str(raw_data)
         
-        # 3. Call Gemini using the universally supported Pro model
-        model = genai.GenerativeModel('gemini-pro')
+        # 3. Call Gemini using your approved 2.5 Flash model
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content(
             f"As a sleep expert, analyze this data in one short sentence: {data_summary}"
         )
