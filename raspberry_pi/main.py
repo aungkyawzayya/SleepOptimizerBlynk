@@ -35,8 +35,10 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-API_URL = "http://136.119.125.251:8000"
+# --- THE FIX IS HERE ---
+API_URL = "http://136.119.125.251:8080"
 GRPC_HOST = "136.119.125.251:50051"
+# -----------------------
 
 def get_settings():
     try:

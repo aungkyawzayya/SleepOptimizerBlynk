@@ -62,3 +62,9 @@ cd backend_api
 
 pkill -f grpc_server.py
 nohup python3 grpc_server.py > grpc.log 2>&1 &
+
+
+New Ways to RUN PI
+===============
+cd ~/Desktop/raspberry_pi/raspberry_pi
+sudo ./venv/bin/python3 main.py
