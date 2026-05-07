@@ -57,9 +57,6 @@ cd backend_api
 pkill -f uvicorn
 nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > api.log 2>&1 &
 
-cd SleepOptimizerBlynk
-cd backend_api
-
 pkill -f grpc_server.py
 nohup python3 grpc_server.py > grpc.log 2>&1 &
 

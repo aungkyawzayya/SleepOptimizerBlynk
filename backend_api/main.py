@@ -4,7 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from dotenv import load_dotenv
-from google import genai
+import google.generativeai as genai  # <-- FIXED IMPORT
 import blynk_client
 from database import get_recent_sensor_data
 
@@ -15,17 +15,12 @@ load_dotenv(env_path)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# 2. Initialize Gemini Client with explicit API Version v1
-# This prevents the 404 error you saw earlier
+# 2. Initialize Gemini (Standard Method)
 api_key = os.getenv("GOOGLE_API_KEY")
 if not api_key:
     logger.error("CRITICAL: GOOGLE_API_KEY not found in .env!")
-    client = None
 else:
-    client = genai.Client(
-        api_key=api_key,
-        http_options={'api_version': 'v1'}
-    )
+    genai.configure(api_key=api_key)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -48,7 +43,7 @@ def get_sensor_settings():
 async def trigger_room_check():
     logger.info("AI Analysis Triggered")
     
-    if client is None:
+    if not api_key:
         blynk_client.update_pin("V7", "Error: No API Key")
         return {"status": "error", "message": "API Key Missing"}
 
@@ -62,11 +57,11 @@ async def trigger_room_check():
 
         data_summary = str(raw_data)
         
-        # 3. Call Gemini using the FULL model path
-        # Using 'models/gemini-1.5-flash' ensures it is found
-        response = client.models.generate_content(
-            model='models/gemini-1.5-flash', 
-            contents=f"As a sleep expert, analyze this data in one short sentence: {data_summary}"
+        # 3. Call Gemini using the standard library method
+        # The library we installed automatically knows the correct URL now!
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(
+            f"As a sleep expert, analyze this data in one short sentence: {data_summary}"
         )
         
         report = response.text.strip()
