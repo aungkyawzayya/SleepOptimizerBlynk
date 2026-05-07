@@ -4,7 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from dotenv import load_dotenv
-import google.generativeai as genai  # <-- FIXED IMPORT
+import google.generativeai as genai
 import blynk_client
 from database import get_recent_sensor_data
 
@@ -15,7 +15,7 @@ load_dotenv(env_path)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# 2. Initialize Gemini (Standard Method)
+# 2. Initialize Gemini
 api_key = os.getenv("GOOGLE_API_KEY")
 if not api_key:
     logger.error("CRITICAL: GOOGLE_API_KEY not found in .env!")
@@ -44,7 +44,7 @@ async def trigger_room_check():
     logger.info("AI Analysis Triggered")
     
     if not api_key:
-        blynk_client.update_pin("V7", "Error: No API Key")
+        blynk_client.update_pin("V9", "Error: No API Key")
         return {"status": "error", "message": "API Key Missing"}
 
     try:
@@ -52,27 +52,26 @@ async def trigger_room_check():
         raw_data = get_recent_sensor_data(limit=10)
         
         if not raw_data:
-            blynk_client.update_pin("V7", "Error: No Sensor Data")
+            blynk_client.update_pin("V9", "Error: No Sensor Data")
             return {"status": "error", "message": "No data in DB"}
 
         data_summary = str(raw_data)
         
-        # 3. Call Gemini using the standard library method
-        # The library we installed automatically knows the correct URL now!
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 3. Call Gemini using the universally supported Pro model
+        model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(
             f"As a sleep expert, analyze this data in one short sentence: {data_summary}"
         )
         
         report = response.text.strip()
 
-        # Update Blynk V7 to clear the 'ANALYZING...' text
-        blynk_client.update_pin("V7", report)
+        # Update Blynk V9 (AI Advice)
+        blynk_client.update_pin("V9", report)
         logger.info(f"AI Success: {report}")
         
         return {"status": "success", "report": report}
 
     except Exception as e:
         logger.error(f"Gemini Failure: {e}")
-        blynk_client.update_pin("V7", "AI Service Error. Try again.")
+        blynk_client.update_pin("V9", "AI Service Error. Try again.")
         return {"status": "error", "message": str(e)}
