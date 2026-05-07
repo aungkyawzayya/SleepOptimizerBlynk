@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 # Retrieve the token securely from the environment
 BLYNK_AUTH_TOKEN = os.getenv("BLYNK_AUTH_TOKEN")
-BLYNK_BASE_URL = "https://blynk.cloud/external/api/update"
+BLYNK_BASE_URL = "https://ny3.blynk.cloud/external/api/update"
 
 # --- THE CORRECTED PIN MAP ---
 # Mapped exactly to your Blynk Web Console Datastreams

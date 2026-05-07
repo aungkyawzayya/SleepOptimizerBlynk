@@ -54,7 +54,9 @@ async def trigger_room_check():
 
         model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content(
-            f"Analyze this current sleep environment data briefly: {raw_data}"
+            f"You are a sleep environment advisor. Analyze ONLY these 4 sensors: "
+            f"Temperature, Sound, Light, Dust from this data: {raw_data}. "
+            f"Give ONE short sentence (max 100 characters) of advice. No markdown, no bullet points."
         )
         report = response.text.strip()
 
@@ -90,9 +92,11 @@ async def trigger_morning_report():
 
         model = genai.GenerativeModel('gemini-2.5-flash')
         prompt = (
-            f"Review this overnight sensor data: {raw_data}. "
-            "Provide a detailed 'Morning Report' including a summary of sleep quality, "
-            "a technical summary of environment changes, and 3 specific improvement tips."
+            f"Sleep environment data: {raw_data}. "
+            "Give a morning report in exactly 3 short lines: "
+            "1) Overall sleep quality score out of 10. "
+            "2) Main issue last night. "
+            "3) One tip for tonight. No markdown, plain text only."
         )
         
         response = model.generate_content(prompt)
