@@ -14,34 +14,31 @@ import json
 import logging
 from datetime import datetime
 from typing import Optional
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
 
 # -- Config --
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
-GEMINI_MODEL = "gemini-2.5-flash-preview-04-17"
-client = None
+GEMINI_API_KEY = ""
+GEMINI_MODEL   = "gemini-2.5-flash"
+_initialized   = False
 
 def init_gemini():
-    global client, GEMINI_API_KEY
-    # Re-read at call time so load_dotenv() has already run in the caller
+    global _initialized, GEMINI_API_KEY
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
     if not GEMINI_API_KEY:
-        print("  WARNING: GEMINI_API_KEY / GOOGLE_API_KEY not set")
+        logger.warning("  WARNING: GEMINI_API_KEY / GOOGLE_API_KEY not set")
         return False
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    print(f"  Gemini AI ({GEMINI_MODEL}) initialized")
+    genai.configure(api_key=GEMINI_API_KEY)
+    _initialized = True
+    logger.info(f"  Gemini Sleep AI ({GEMINI_MODEL}) initialized")
     return True
 
 def is_available():
-    return client is not None
+    return _initialized
 
 def _extract_text(response) -> str:
     try:
-        if response.candidates and response.candidates[0].content.parts:
-            return response.candidates[0].content.parts[0].text
         return response.text
     except Exception as e:
         logger.error(f"[GEMINI PARSE ERROR] {e}")
@@ -88,15 +85,14 @@ Only score sensors that have readings. 100 = perfect sleep conditions.
 Respond with ONLY the JSON, no other text."""
 
     try:
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.2,
-                response_mime_type="application/json"
-            )
-        )
-        text = _extract_text(response)
+        model = genai.GenerativeModel(GEMINI_MODEL)
+        response = model.generate_content(prompt)
+        text = _extract_text(response).strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
         return json.loads(text)
     except Exception as e:
         logger.error(f"[GEMINI ROOM CHECK ERROR] {e}")
@@ -156,15 +152,14 @@ Provide your response in EXACTLY this JSON format:
 {{"score": {calculated_score}, "summary": "<max 250 chars>", "tips": "<max 250 chars>"}}"""
 
     try:
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.4,
-                response_mime_type="application/json"
-            )
-        )
-        text = _extract_text(response)
+        model = genai.GenerativeModel(GEMINI_MODEL)
+        response = model.generate_content(prompt)
+        text = _extract_text(response).strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
         return json.loads(text)
     except Exception as e:
         logger.error(f"[GEMINI MORNING REPORT ERROR] {e}")
