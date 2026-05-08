@@ -25,12 +25,14 @@ GEMINI_MODEL = "gemini-2.0-flash"
 client = None
 
 def init_gemini():
-    global client
+    global client, GEMINI_API_KEY
+    # Re-read at call time so load_dotenv() has already run in the caller
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
     if not GEMINI_API_KEY:
-        print("  WARNING: GEMINI_API_KEY not set")
+        print("  WARNING: GEMINI_API_KEY / GOOGLE_API_KEY not set")
         return False
     client = genai.Client(api_key=GEMINI_API_KEY)
-    print(f"  Gemini AI: {GEMINI_MODEL} initialized")
+    print(f"  Gemini AI ({GEMINI_MODEL}) initialized")
     return True
 
 def is_available():
