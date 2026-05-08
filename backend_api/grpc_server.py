@@ -24,8 +24,11 @@ class SensorDataService(sensor_data_pb2_grpc.SensorDataServiceServicer):
             # Save to DB
             save_sensor_data(data)
             # Push to Blynk Dashboard
+            # Skip "fan" — V24 is the user's Manual/AUTO control switch,
+            # not a sensor output. Writing it here would overwrite the toggle.
+            SKIP_KEYS = {"fan"}
             for key, val in data.items():
-                if key in blynk_client.PINS:
+                if key in blynk_client.PINS and key not in SKIP_KEYS:
                     blynk_client.update_pin(blynk_client.PINS[key], val)
             
             logger.info(f"gRPC Data Synced to Blynk: {data['temperature']}C")

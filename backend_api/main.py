@@ -151,34 +151,15 @@ app = FastAPI(title="Sleep Optimizer AI", lifespan=lifespan)
 
 @app.get("/settings")
 def get_sensor_settings():
-    # Read live values from Blynk so the Pi respects dashboard toggles
-    power    = 1
-    interval = 5
-    fan_manual = 1  # default: forced ON
-
+    # V24 is the Manual Fan Control switch: 0 = AUTO (temp-based), 1 = Force ON
+    fan_manual = 1  # safe default
     try:
-        pwr_val = blynk_client.get_pin("V12")
-        if pwr_val is not None:
-            power = int(float(pwr_val))
+        val = blynk_client.get_pin("V24")
+        if val is not None:
+            fan_manual = int(float(val))
     except Exception:
         pass
-
-    try:
-        inv_val = blynk_client.get_pin("V13")
-        if inv_val is not None:
-            interval = max(5, min(300, int(float(inv_val))))
-    except Exception:
-        pass
-
-    try:
-        # V20: 0 = AUTO mode (temp-based), 1 = Manual / Force ON
-        fan_val = blynk_client.get_pin("V20")
-        if fan_val is not None:
-            fan_manual = int(float(fan_val))
-    except Exception:
-        pass
-
-    return {"power": power, "interval": interval, "fan_manual": fan_manual}
+    return {"power": 1, "interval": 5, "fan_manual": fan_manual}
 
 # --- ENDPOINT 1: QUICK ROOM CHECK (V16 -> V9) ---
 @app.post("/analyze")
