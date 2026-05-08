@@ -39,9 +39,10 @@ async def lifespan(app: FastAPI):
     yield
 
 async def keep_blynk_alive():
+    # V0 is the Temperature pin — do NOT write to it here.
+    # This coroutine is kept as a placeholder in case a real heartbeat pin is added.
     while True:
-        blynk_client.update_pin("V0", 1)
-        await asyncio.sleep(30)
+        await asyncio.sleep(60)
 
 # --- V16 BUTTON POLLER (replaces missing Blynk HTTP-webhook on free plan) ---
 # Polls V16 every 5 s. When pressed (value=1): shows "ANALYZING…" on V9,
