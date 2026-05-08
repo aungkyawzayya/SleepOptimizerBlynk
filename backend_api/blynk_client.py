@@ -44,3 +44,8 @@ def sync_data_to_blynk(sensor_data):
     success = False
     for key, value in sensor_data.items():
         if key in PINS:
+            pin = PINS[key]
+            if update_pin(pin, value):
+                success = True
+    if success:
+        logger.info(f"gRPC Data Synced to Blynk: {sensor_data.get('temperature', 'N/A')}C")
