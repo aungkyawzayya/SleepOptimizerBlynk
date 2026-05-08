@@ -18,6 +18,7 @@ PINS = {
     "dust":               "V5",
     "motion":             "V6",
     "fan":                "V24",
+    "fan_mode":           "V20",
     "ai_report":          "V9",
     "ai_advice":          "V9",   # alias used by ai_advice.py
     "status":             "V11",

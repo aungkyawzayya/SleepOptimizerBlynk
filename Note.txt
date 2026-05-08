@@ -64,3 +64,8 @@ New Ways to RUN PI
 ===============
 cd ~/Desktop/raspberry_pi/raspberry_pi
 sudo ./venv/bin/python3 main.py
+
+
+Check Error in VM
+=================
+tail -f ~/SleepOptimizerBlynk/
