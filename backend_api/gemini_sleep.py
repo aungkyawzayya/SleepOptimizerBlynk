@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # -- Config --
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
-GEMINI_MODEL = "gemini-2.0-flash" 
+GEMINI_MODEL = "gemini-2.5-flash-preview-04-17"
 client = None
 
 def init_gemini():
