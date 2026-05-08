@@ -1,11 +1,14 @@
 import os
 import logging
 import requests
+from dotenv import load_dotenv
+
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 logger = logging.getLogger(__name__)
 
 BLYNK_AUTH_TOKEN = os.getenv("BLYNK_AUTH_TOKEN")
-BLYNK_BASE_URL = "https://ny3.blynk.cloud/external/api/update"  # Fixed server
+BLYNK_BASE_URL = "https://ny3.blynk.cloud/external/api/update"
 
 PINS = {
     "temperature": "V0",
@@ -41,8 +44,3 @@ def sync_data_to_blynk(sensor_data):
     success = False
     for key, value in sensor_data.items():
         if key in PINS:
-            pin = PINS[key]
-            if update_pin(pin, value):
-                success = True
-    if success:
-        logger.info(f"gRPC Data Synced to Blynk: {sensor_data.get('temperature', 'N/A')}C")
