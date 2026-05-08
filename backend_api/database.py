@@ -78,17 +78,40 @@ def save_sensor_data(data: dict):
 
 def get_recent_sensor_data(limit=20):
     """
-    Fetches the most recent sensor readings for AI analysis.
-    This fixes the ImportError in main.py.
+    Fetches sensor readings from last night only (10 PM yesterday → 7 AM today).
+    Falls back to latest 100 rows if no data found in that window.
     """
     conn = None
     try:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
-        # Use created_at if available, otherwise order by ID
-        query = "SELECT * FROM sensor_data ORDER BY id DESC LIMIT %s"
-        cursor.execute(query, (limit,))
+
+        # Calculate last night's window: 22:00 yesterday → 07:00 today
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        if now.hour < 7:
+            # Before 7 AM — last night started yesterday at 22:00
+            night_start = (now - timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0)
+        else:
+            # After 7 AM — last night started today at 22:00 yesterday
+            night_start = now.replace(hour=22, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        night_end = night_start + timedelta(hours=9)  # 22:00 → 07:00
+
+        query = """
+            SELECT * FROM sensor_data
+            WHERE created_at BETWEEN %s AND %s
+            ORDER BY created_at ASC
+            LIMIT %s
+        """
+        cursor.execute(query, (night_start, night_end, limit))
         result = cursor.fetchall()
+
+        # Fallback: if no data in last night's window, use latest rows
+        if not result:
+            logger.warning("[DB] No data for last night window, falling back to latest rows")
+            cursor.execute("SELECT * FROM sensor_data ORDER BY id DESC LIMIT %s", (limit,))
+            result = cursor.fetchall()
+
         cursor.close()
         return result
     except Exception as e:
