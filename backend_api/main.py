@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -7,6 +8,11 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 import blynk_client
 from database import get_recent_sensor_data
+
+# Cooldown timestamps — prevent runaway webhook loops
+_last_analyze_time      = 0.0
+_last_morning_rpt_time  = 0.0
+COOLDOWN_SECONDS        = 30   # minimum gap between successive calls
 
 # 1. Load environment variables
 env_path = os.path.join(os.path.dirname(__file__), ".env")
@@ -27,6 +33,7 @@ async def lifespan(app: FastAPI):
     logger.info("Sleep Optimizer Online")
     asyncio.create_task(keep_blynk_alive())
     asyncio.create_task(poll_v16_trigger())   # webhook substitute: V16=1 → /analyze
+    asyncio.create_task(poll_v14_trigger())   # webhook substitute: V14=1 → /morning_report
     yield
 
 async def keep_blynk_alive():
@@ -86,6 +93,57 @@ async def poll_v16_trigger():
 
         await asyncio.sleep(V16_POLL_INTERVAL)
 
+# --- V14 BUTTON POLLER (replaces missing Blynk HTTP-webhook on free plan) ---
+# Polls V14 every 5 s. When pressed (value=1): shows "Generating..." on V10,
+# runs the morning report AI inline, then resets V14 to 0.
+async def poll_v14_trigger():
+    V14_POLL_INTERVAL = 5  # seconds
+    while True:
+        try:
+            def _check_and_run():
+                val = blynk_client.get_pin("V14")
+                if val is None:
+                    return
+                try:
+                    pressed = int(float(val)) == 1
+                except ValueError:
+                    return
+                if not pressed:
+                    return
+
+                logger.info("[V14 POLLER] Morning Report button pressed — generating report")
+
+                # Immediately show feedback and reset button
+                blynk_client.update_pin("V10", "Generating report...")
+                blynk_client.update_pin("V14", 0)
+
+                raw_data = get_recent_sensor_data(limit=100)
+                if not raw_data:
+                    blynk_client.update_pin("V10", "No data available.")
+                    logger.warning("[V14 POLLER] No sensor data available.")
+                    return
+
+                model = genai.GenerativeModel('gemini-2.5-flash')
+                prompt = (
+                    f"Sleep environment data: {raw_data}. "
+                    "Write a morning report in exactly 3 short lines, plain text only, no markdown: "
+                    "Line 1: Sleep quality score X/10. "
+                    "Line 2: Main issue last night. "
+                    "Line 3: One tip for tonight."
+                )
+                response = model.generate_content(prompt)
+                full_report = response.text.strip()
+
+                blynk_client.update_pin("V10", full_report)
+                logger.info(f"[V14 POLLER] Morning Report complete: {full_report[:60]}...")
+
+            await asyncio.to_thread(_check_and_run)
+        except Exception as e:
+            logger.error(f"[V14 POLLER] Error: {e}")
+
+        await asyncio.sleep(V14_POLL_INTERVAL)
+
+
 app = FastAPI(title="Sleep Optimizer AI", lifespan=lifespan)
 
 @app.get("/settings")
@@ -95,6 +153,12 @@ def get_sensor_settings():
 # --- ENDPOINT 1: QUICK ROOM CHECK (V16 -> V9) ---
 @app.post("/analyze")
 async def trigger_room_check():
+    global _last_analyze_time
+    now = time.time()
+    if now - _last_analyze_time < COOLDOWN_SECONDS:
+        logger.warning(f"[/analyze] Cooldown active — skipping ({COOLDOWN_SECONDS}s guard)")
+        return {"status": "cooldown"}
+    _last_analyze_time = now
     logger.info("AI Room Check Triggered")
 
     try:
@@ -136,6 +200,12 @@ async def trigger_room_check():
 # --- ENDPOINT 2: MORNING REPORT (V14 -> V10) ---
 @app.post("/morning_report")
 async def trigger_morning_report():
+    global _last_morning_rpt_time
+    now = time.time()
+    if now - _last_morning_rpt_time < COOLDOWN_SECONDS:
+        logger.warning(f"[/morning_report] Cooldown active — skipping ({COOLDOWN_SECONDS}s guard)")
+        return {"status": "cooldown"}
+    _last_morning_rpt_time = now
     logger.info("Morning Report Generation Triggered")
 
     try:
