@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # 2. Initialize Gemini
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("GOOGLE_API_KEY")
 if not api_key:
     logger.error("CRITICAL: GEMINI_API_KEY not found in .env!")
 else:
