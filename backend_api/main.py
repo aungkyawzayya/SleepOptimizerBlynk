@@ -16,9 +16,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # 2. Initialize Gemini
-api_key = os.getenv("GOOGLE_API_KEY")
+api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
-    logger.error("CRITICAL: GOOGLE_API_KEY not found in .env!")
+    logger.error("CRITICAL: GEMINI_API_KEY not found in .env!")
 else:
     genai.configure(api_key=api_key)
 
@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
 
 async def keep_blynk_alive():
     while True:
-        blynk_client.update_pin("V0", 1) 
+        blynk_client.update_pin("V0", 1)
         await asyncio.sleep(30)
 
 app = FastAPI(title="Sleep Optimizer AI", lifespan=lifespan)
@@ -43,30 +43,34 @@ def get_sensor_settings():
 @app.post("/analyze")
 async def trigger_room_check():
     logger.info("AI Room Check Triggered")
-    
+
     try:
         raw_data = get_recent_sensor_data(limit=10)
         if not raw_data:
             blynk_client.update_pin("V9", "No sensor data found.")
             await asyncio.sleep(0.5)
-            blynk_client.update_pin("V16", 0) # Reset button
+            blynk_client.update_pin("V16", 0)
             return {"status": "error"}
 
         model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content(
-            f"You are a sleep environment advisor. Analyze ONLY these 4 sensors: "
-            f"Temperature, Sound, Light, Dust from this data: {raw_data}. "
-            f"Give ONE short sentence (max 100 characters) of advice. No markdown, no bullet points."
+            f"You are a sleep environment advisor. "
+            f"Analyze ONLY Temperature, Sound, Light, and Dust from this data: {raw_data}. "
+            f"Give ONE short sentence of advice, max 100 characters. "
+            f"No markdown, no bullet points, plain text only."
         )
         report = response.text.strip()
 
-        # Update Advice and Reset Button
+        # Truncate to 100 chars just in case
+        if len(report) > 100:
+            report = report[:97] + "..."
+
         blynk_client.update_pin("V9", report)
-        await asyncio.sleep(0.5) # Safety delay for Blynk UI
-        blynk_client.update_pin("V16", 0) 
-        
+        await asyncio.sleep(0.5)
+        blynk_client.update_pin("V16", 0)
+
         logger.info(f"Room Check Success: {report}")
-        return {"status": "success"}
+        return {"status": "success", "advice": report}
 
     except Exception as e:
         logger.error(f"Room Check Error: {e}")
@@ -75,45 +79,43 @@ async def trigger_room_check():
         blynk_client.update_pin("V16", 0)
         return {"status": "error"}
 
+
 # --- ENDPOINT 2: MORNING REPORT (V14 -> V10) ---
 @app.post("/morning_report")
 async def trigger_morning_report():
     logger.info("Morning Report Generation Triggered")
-    
+
     try:
-        # Fetch a larger window for the morning report (last 100 entries)
         raw_data = get_recent_sensor_data(limit=100)
-        
+
         if not raw_data:
-            blynk_client.update_pin("V10", "Error: No data.")
+            blynk_client.update_pin("V10", "No data available.")
             await asyncio.sleep(0.5)
-            blynk_client.update_pin("V14", 0) # Reset button
+            blynk_client.update_pin("V14", 0)
             return {"status": "error"}
 
         model = genai.GenerativeModel('gemini-2.5-flash')
         prompt = (
             f"Sleep environment data: {raw_data}. "
-            "Give a morning report in exactly 3 short lines: "
-            "1) Overall sleep quality score out of 10. "
-            "2) Main issue last night. "
-            "3) One tip for tonight. No markdown, plain text only."
+            "Write a morning report in exactly 3 short lines, plain text only, no markdown: "
+            "Line 1: Sleep quality score X/10. "
+            "Line 2: Main issue last night. "
+            "Line 3: One tip for tonight."
         )
-        
+
         response = model.generate_content(prompt)
         full_report = response.text.strip()
 
-        # Update Blynk Datastream
         blynk_client.update_pin("V10", full_report)
-        
-        # Reset the "Generating" Button (V14)
-        await asyncio.sleep(0.5) # Safety delay for Blynk UI
+        await asyncio.sleep(0.5)
         blynk_client.update_pin("V14", 0)
-        
+
         logger.info("Morning Report Success")
-        return {"status": "success"}
+        return {"status": "success", "report": full_report}
 
     except Exception as e:
         logger.error(f"Morning Report Error: {e}")
+        blynk_client.update_pin("V10", "AI Error. Try again.")
         await asyncio.sleep(0.5)
         blynk_client.update_pin("V14", 0)
         return {"status": "error"}
