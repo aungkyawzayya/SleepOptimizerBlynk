@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from dotenv import load_dotenv
 import google.generativeai as genai
 import blynk_client
+import gemini_sleep
 from database import get_recent_sensor_data
 
 # Cooldown timestamps — prevent runaway webhook loops
@@ -30,6 +31,7 @@ else:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    gemini_sleep.init_gemini()                # initialise gemini_sleep client
     logger.info("Sleep Optimizer Online")
     asyncio.create_task(keep_blynk_alive())
     asyncio.create_task(poll_v16_trigger())   # webhook substitute: V16=1 → /analyze
@@ -123,19 +125,20 @@ async def poll_v14_trigger():
                     logger.warning("[V14 POLLER] No sensor data available.")
                     return
 
-                model = genai.GenerativeModel('gemini-2.5-flash')
-                prompt = (
-                    f"Sleep environment data: {raw_data}. "
-                    "Write a morning report in exactly 3 short lines, plain text only, no markdown: "
-                    "Line 1: Sleep quality score X/10. "
-                    "Line 2: Main issue last night. "
-                    "Line 3: One tip for tonight."
-                )
-                response = model.generate_content(prompt)
-                full_report = response.text.strip()
+                result = gemini_sleep.morning_report(raw_data)
+                if not result:
+                    blynk_client.update_pin("V10", "AI Error. Try again.")
+                    logger.warning("[V14 POLLER] gemini_sleep returned no result.")
+                    return
 
-                blynk_client.update_pin("V10", full_report)
-                logger.info(f"[V14 POLLER] Morning Report complete: {full_report[:60]}...")
+                score   = result.get('score', 0)
+                summary = result.get('summary', '')
+                tips    = result.get('tips', '')
+
+                blynk_client.update_pin("V10", f"Sleep Score: {score}/100")
+                blynk_client.update_pin("V18", summary)
+                blynk_client.update_pin("V19", tips)
+                logger.info(f"[V14 POLLER] Morning Report complete: score={score}/100")
 
             await asyncio.to_thread(_check_and_run)
         except Exception as e:
@@ -217,24 +220,25 @@ async def trigger_morning_report():
             blynk_client.update_pin("V14", 0)
             return {"status": "error"}
 
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        prompt = (
-            f"Sleep environment data: {raw_data}. "
-            "Write a morning report in exactly 3 short lines, plain text only, no markdown: "
-            "Line 1: Sleep quality score X/10. "
-            "Line 2: Main issue last night. "
-            "Line 3: One tip for tonight."
-        )
+        result = gemini_sleep.morning_report(raw_data)
+        if not result:
+            blynk_client.update_pin("V10", "AI Error. Try again.")
+            await asyncio.sleep(0.5)
+            blynk_client.update_pin("V14", 0)
+            return {"status": "error"}
 
-        response = model.generate_content(prompt)
-        full_report = response.text.strip()
+        score   = result.get('score', 0)
+        summary = result.get('summary', '')
+        tips    = result.get('tips', '')
 
-        blynk_client.update_pin("V10", full_report)
+        blynk_client.update_pin("V10", f"Sleep Score: {score}/100")
+        blynk_client.update_pin("V18", summary)
+        blynk_client.update_pin("V19", tips)
         await asyncio.sleep(0.5)
         blynk_client.update_pin("V14", 0)
 
         logger.info("Morning Report Success")
-        return {"status": "success", "report": full_report}
+        return {"status": "success", "score": score, "summary": summary, "tips": tips}
 
     except Exception as e:
         logger.error(f"Morning Report Error: {e}")

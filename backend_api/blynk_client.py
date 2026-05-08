@@ -23,6 +23,15 @@ PINS = {
     "status":             "V11",
     "room_check_trigger": "V16",  # "CHECK NOW" button
     "morning_trigger":    "V14",  # "Generate Morning Report" button
+    "morning_rpt":        "V10",  # Sleep Score (short header)
+    "morning_summary":    "V18",  # Sleep Environment Summary
+    "morning_tips":       "V19",  # Sleep Quality Improvement Tips
+    "sleep_score":        "V8",   # numeric gauge
+    "sleep_status":       "V11",  # status banner
+    "data_source":        "V15",
+    "power":              "V12",
+    "interval":           "V13",
+    "reset_trigger":      "V17",
 }
 
 def update_pin(pin, value):

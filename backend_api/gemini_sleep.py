@@ -20,7 +20,7 @@ from google.genai import types
 logger = logging.getLogger(__name__)
 
 # -- Config --
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
 GEMINI_MODEL = "gemini-2.0-flash" 
 client = None
 
