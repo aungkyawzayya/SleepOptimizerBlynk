@@ -26,12 +26,65 @@ else:
 async def lifespan(app: FastAPI):
     logger.info("Sleep Optimizer Online")
     asyncio.create_task(keep_blynk_alive())
+    asyncio.create_task(poll_v16_trigger())   # webhook substitute: V16=1 → /analyze
     yield
 
 async def keep_blynk_alive():
     while True:
         blynk_client.update_pin("V0", 1)
         await asyncio.sleep(30)
+
+# --- V16 BUTTON POLLER (replaces missing Blynk HTTP-webhook on free plan) ---
+# Polls V16 every 5 s. When pressed (value=1): shows "ANALYZING…" on V9,
+# runs the room-check AI inline, then resets V16 to 0.
+async def poll_v16_trigger():
+    V16_POLL_INTERVAL = 5  # seconds
+    while True:
+        try:
+            def _check_and_run():
+                val = blynk_client.get_pin("V16")
+                if val is None:
+                    return
+                try:
+                    pressed = int(float(val)) == 1
+                except ValueError:
+                    return
+                if not pressed:
+                    return
+
+                logger.info("[V16 POLLER] Room Check button pressed — triggering AI analysis")
+
+                # Immediately show "ANALYZING…" so the user sees feedback
+                blynk_client.update_pin("V9", "Analyzing...")
+                # Reset button so it can be pressed again
+                blynk_client.update_pin("V16", 0)
+
+                # Run the AI room check
+                raw_data = get_recent_sensor_data(limit=10)
+                if not raw_data:
+                    blynk_client.update_pin("V9", "No sensor data found.")
+                    logger.warning("[V16 POLLER] No sensor data available.")
+                    return
+
+                model = genai.GenerativeModel('gemini-2.5-flash')
+                response = model.generate_content(
+                    "You are a sleep environment advisor. "
+                    f"Analyze ONLY Temperature, Sound, Light, and Dust from this data: {raw_data}. "
+                    "Give ONE short sentence of advice, max 100 characters. "
+                    "No markdown, no bullet points, plain text only."
+                )
+                report = response.text.strip()
+                if len(report) > 100:
+                    report = report[:97] + "..."
+
+                blynk_client.update_pin("V9", report)
+                logger.info(f"[V16 POLLER] Room Check complete: {report}")
+
+            await asyncio.to_thread(_check_and_run)
+        except Exception as e:
+            logger.error(f"[V16 POLLER] Error: {e}")
+
+        await asyncio.sleep(V16_POLL_INTERVAL)
 
 app = FastAPI(title="Sleep Optimizer AI", lifespan=lifespan)
 
