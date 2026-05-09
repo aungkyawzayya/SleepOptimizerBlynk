@@ -170,7 +170,16 @@ def get_sensor_settings():
     except Exception:
         pass
 
-    return {"power": 1, "interval": interval, "fan_mode": fan_mode}
+    # V12: Power toggle (1 = ON, 0 = OFF)
+    power = 1  # safe default: ON
+    try:
+        val = blynk_client.get_pin("V12")
+        if val is not None:
+            power = int(float(val))
+    except Exception:
+        pass
+
+    return {"power": power, "interval": interval, "fan_mode": fan_mode}
 
 # --- ENDPOINT 1: QUICK ROOM CHECK (V16 -> V9) ---
 @app.post("/analyze")
