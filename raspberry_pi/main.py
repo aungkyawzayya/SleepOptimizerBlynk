@@ -66,11 +66,11 @@ def main():
             "motion": int(read_motion())
         }
 
-        # Fan logic: 1=AUTO (temp-based), 2=Force ON, 3=Force OFF
-        fan_mode = settings.get("fan_mode", 1)
-        if fan_mode == 3:
+        # Fan logic: 0=AUTO (temp-based), 1=Force ON, 2=Force OFF
+        fan_mode = settings.get("fan_mode", 0)
+        if fan_mode == 2:
             fan_state = 0                              # Force OFF
-        elif fan_mode == 2:
+        elif fan_mode == 1:
             fan_state = 1                              # Force ON
         else:
             fan_state = 1 if payload["temperature"] >= 26 else 0  # AUTO

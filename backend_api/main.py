@@ -152,8 +152,8 @@ app = FastAPI(title="Sleep Optimizer AI", lifespan=lifespan)
 
 @app.get("/settings")
 def get_sensor_settings():
-    # V24 fan mode: 1 = AUTO (temp-based), 2 = Force ON, 3 = Force OFF
-    fan_mode = 1  # safe default: AUTO
+    # V24 fan mode: 0 = AUTO (temp-based), 1 = Force ON, 2 = Force OFF
+    fan_mode = 0  # safe default: AUTO
     try:
         val = blynk_client.get_pin("V24")
         if val is not None:
