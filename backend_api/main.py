@@ -152,15 +152,15 @@ app = FastAPI(title="Sleep Optimizer AI", lifespan=lifespan)
 
 @app.get("/settings")
 def get_sensor_settings():
-    # V24 is the Manual Fan Control switch: 0 = AUTO (temp-based), 1 = Force ON
-    fan_manual = 1  # safe default
+    # V24 fan mode: 1 = AUTO (temp-based), 2 = Force ON, 3 = Force OFF
+    fan_mode = 1  # safe default: AUTO
     try:
         val = blynk_client.get_pin("V24")
         if val is not None:
-            fan_manual = int(float(val))
+            fan_mode = int(float(val))
     except Exception:
         pass
-    return {"power": 1, "interval": 5, "fan_manual": fan_manual}
+    return {"power": 1, "interval": 5, "fan_mode": fan_mode}
 
 # --- ENDPOINT 1: QUICK ROOM CHECK (V16 -> V9) ---
 @app.post("/analyze")
