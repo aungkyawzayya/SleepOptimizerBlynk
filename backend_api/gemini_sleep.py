@@ -147,9 +147,10 @@ Review this overnight summary data:
 The Sleep Score was already calculated mathematically using sensor fusion. The motion sensor is highly sensitive, so the score relied heavily on the light and sound data.
 
 Write a short summary and improvement tips for the dashboard based on these numbers.
+Keep it concise — this will be displayed on a small IoT dashboard widget.
 
 Provide your response in EXACTLY this JSON format:
-{{"score": {calculated_score}, "summary": "<max 250 chars>", "tips": "<max 250 chars>"}}"""
+{{"score": {calculated_score}, "summary": "<max 120 chars>", "tips": "<max 120 chars>"}}"""
 
     try:
         model = genai.GenerativeModel(GEMINI_MODEL)
@@ -160,7 +161,13 @@ Provide your response in EXACTLY this JSON format:
             text = text.split("```")[1]
             if text.startswith("json"):
                 text = text[4:]
-        return json.loads(text)
+        result = json.loads(text)
+        # Hard truncate to protect Blynk label widget display
+        if 'summary' in result:
+            result['summary'] = result['summary'][:120]
+        if 'tips' in result:
+            result['tips'] = result['tips'][:120]
+        return result
     except Exception as e:
         logger.error(f"[GEMINI MORNING REPORT ERROR] {e}")
         return None
