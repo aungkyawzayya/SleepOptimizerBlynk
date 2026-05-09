@@ -51,7 +51,7 @@ def get_settings():
 def main():
     setup_temperature(); setup_sound(); setup_dust(); setup_light(); setup_fan(); setup_motion()
     fan_state = 0
-    
+
     while True:
         settings = get_settings()
         if not settings.get("power", 1):
@@ -67,13 +67,19 @@ def main():
         }
 
         # Fan logic: 0=AUTO (temp-based), 1=Force ON, 2=Force OFF
+        # AUTO uses hysteresis: ON >= 25°C, OFF <= 23°C (no flicker in between)
         fan_mode = settings.get("fan_mode", 0)
         if fan_mode == 2:
-            fan_state = 0                              # Force OFF
+            fan_state = 0                                      # Force OFF
         elif fan_mode == 1:
-            fan_state = 1                              # Force ON
+            fan_state = 1                                      # Force ON
         else:
-            fan_state = 1 if payload["temperature"] >= 26 else 0  # AUTO
+            temp = payload["temperature"]
+            if temp >= 25:
+                fan_state = 1                                  # AUTO: turn ON
+            elif temp <= 23:
+                fan_state = 0                                  # AUTO: turn OFF
+            # between 23-25°C: keep current fan_state (hysteresis zone)
         set_fan(fan_state)
         payload["fan"] = fan_state
 
