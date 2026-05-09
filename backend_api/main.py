@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 import blynk_client
 import gemini_sleep
-from database import get_recent_sensor_data
+from database import get_recent_sensor_data, save_sensor_data
 
 # Cooldown timestamps — prevent runaway webhook loops
 _last_analyze_time      = 0.0
@@ -36,6 +36,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(keep_blynk_alive())
     asyncio.create_task(poll_v16_trigger())   # webhook substitute: V16=1 → /analyze
     asyncio.create_task(poll_v14_trigger())   # webhook substitute: V14=1 → /morning_report
+    asyncio.create_task(fake_data_loop())     # auto-generate fake data when V15=1
     yield
 
 async def keep_blynk_alive():
@@ -43,6 +44,61 @@ async def keep_blynk_alive():
     # This coroutine is kept as a placeholder in case a real heartbeat pin is added.
     while True:
         await asyncio.sleep(60)
+
+# --- FAKE DATA LOOP (V15=1 → auto-generate fake sensor data) ---
+async def fake_data_loop():
+    from fake_sensors import read_all
+    SKIP_KEYS = {"fan"}  # V24 is user control — never overwrite it
+    while True:
+        try:
+            def _run():
+                # Check if Fake API mode is active (V15=1)
+                mode_val = blynk_client.get_pin("V15")
+                if mode_val is None or int(float(mode_val)) != 1:
+                    return  # Pi mode — do nothing
+
+                # Read interval from V13
+                interval_val = blynk_client.get_pin("V13")
+                interval = max(5, int(float(interval_val))) if interval_val else 5
+
+                # Generate fake sensor data
+                data = read_all()
+
+                # Fan logic using same thresholds as Pi
+                temp = data.get("temperature", 0)
+                fan_mode_val = blynk_client.get_pin("V24")
+                fan_mode = int(float(fan_mode_val)) if fan_mode_val else 0
+                if fan_mode == 2:
+                    data["fan"] = 0
+                elif fan_mode == 1:
+                    data["fan"] = 1
+                else:
+                    data["fan"] = 1 if temp >= 25 else 0
+
+                # Save to DB
+                save_sensor_data(data)
+
+                # Push to Blynk (skip fan/V24)
+                for key, val in data.items():
+                    if key in blynk_client.PINS and key not in SKIP_KEYS:
+                        blynk_client.update_pin(blynk_client.PINS[key], val)
+
+                logger.info(f"[FAKE] Sent: Temp={data.get('temperature')}°C | "
+                            f"Sound={data.get('sound')} | Light={data.get('light')} | "
+                            f"Dust={data.get('dust')} | Motion={data.get('motion')} | "
+                            f"Fan={data.get('fan')}")
+
+            await asyncio.to_thread(_run)
+        except Exception as e:
+            logger.error(f"[FAKE ERROR] {e}")
+
+        # Poll interval from V13 for sleep duration
+        try:
+            iv = blynk_client.get_pin("V13")
+            sleep_secs = max(5, int(float(iv))) if iv else 5
+        except Exception:
+            sleep_secs = 5
+        await asyncio.sleep(sleep_secs)
 
 # --- V16 BUTTON POLLER (replaces missing Blynk HTTP-webhook on free plan) ---
 # Polls V16 every 5 s. When pressed (value=1): shows "ANALYZING…" on V9,
