@@ -160,7 +160,17 @@ def get_sensor_settings():
             fan_mode = int(float(val))
     except Exception:
         pass
-    return {"power": 1, "interval": 5, "fan_mode": fan_mode}
+
+    # V13: Sensor Data Interval (seconds), min 5, max 300
+    interval = 5  # safe default
+    try:
+        val = blynk_client.get_pin("V13")
+        if val is not None:
+            interval = max(5, min(300, int(float(val))))
+    except Exception:
+        pass
+
+    return {"power": 1, "interval": interval, "fan_mode": fan_mode}
 
 # --- ENDPOINT 1: QUICK ROOM CHECK (V16 -> V9) ---
 @app.post("/analyze")
