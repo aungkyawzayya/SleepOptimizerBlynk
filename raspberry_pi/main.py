@@ -46,7 +46,7 @@ def get_settings():
         with urllib.request.urlopen(req, timeout=5) as resp:
             return json.loads(resp.read().decode())
     except Exception:
-        return {"power": 1, "interval": 5, "fan_manual": 1}
+        return {"power": 1, "interval": 5, "fan_mode": 0}  # default: AUTO
 
 def main():
     setup_temperature(); setup_sound(); setup_dust(); setup_light(); setup_fan(); setup_motion()

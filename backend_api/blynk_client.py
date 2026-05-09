@@ -73,9 +73,10 @@ def get_pin(pin):
 
 def sync_data_to_blynk(sensor_data):
     """Maps sensor dict keys to Blynk pins and sends updates."""
+    SKIP_KEYS = {"fan"}  # V24 is user control — never overwrite it
     success = False
     for key, value in sensor_data.items():
-        if key in PINS:
+        if key in PINS and key not in SKIP_KEYS:
             pin = PINS[key]
             if update_pin(pin, value):
                 success = True

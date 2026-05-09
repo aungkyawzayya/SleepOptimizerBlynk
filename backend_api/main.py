@@ -92,12 +92,16 @@ async def fake_data_loop():
         except Exception as e:
             logger.error(f"[FAKE ERROR] {e}")
 
-        # Poll interval from V13 for sleep duration
+        # In Pi mode sleep longer to avoid unnecessary Blynk API calls
         try:
-            iv = blynk_client.get_pin("V13")
-            sleep_secs = max(5, int(float(iv))) if iv else 5
+            mode = blynk_client.get_pin("V15")
+            if mode is not None and int(float(mode)) == 1:
+                iv = blynk_client.get_pin("V13")
+                sleep_secs = max(5, int(float(iv))) if iv else 5
+            else:
+                sleep_secs = 10  # Pi mode: check every 10s instead of hammering Blynk
         except Exception:
-            sleep_secs = 5
+            sleep_secs = 10
         await asyncio.sleep(sleep_secs)
 
 # --- V16 BUTTON POLLER (replaces missing Blynk HTTP-webhook on free plan) ---
@@ -176,7 +180,7 @@ async def poll_v14_trigger():
                 blynk_client.update_pin("V10", "Generating report...")
                 blynk_client.update_pin("V14", 0)
 
-                raw_data = get_recent_sensor_data(limit=100)
+                raw_data = get_recent_sensor_data(limit=2500)
                 if not raw_data:
                     blynk_client.update_pin("V10", "No data available.")
                     logger.warning("[V14 POLLER] No sensor data available.")
@@ -296,7 +300,7 @@ async def trigger_morning_report():
     logger.info("Morning Report Generation Triggered")
 
     try:
-        raw_data = get_recent_sensor_data(limit=100)
+        raw_data = get_recent_sensor_data(limit=2500)
 
         if not raw_data:
             blynk_client.update_pin("V10", "No data available.")

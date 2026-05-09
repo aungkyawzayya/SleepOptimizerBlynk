@@ -45,17 +45,17 @@ def _extract_text(response) -> str:
         return ""
 
 def _format_sensor(data: dict) -> str:
-    labels = {
-        'temperature': 'Temperature: {v}°C',
-        'sound': 'Sound Level: {v}/255 (0=Silent, 255=Very Loud)',
-        'light': 'Light Level: {v}/255 (0=Total Darkness, 255=Bright)',
-        'dust': 'Dust Density: {v} mg/m³',
-        'motion': 'Motion Detected: {"Yes" if v==1 else "No"}'
-    }
     lines = []
-    for key, fmt in labels.items():
-        if key in data and data[key] is not None:
-            lines.append(fmt.format(v=data[key]))
+    if data.get('temperature') is not None:
+        lines.append(f"Temperature: {data['temperature']}°C")
+    if data.get('sound') is not None:
+        lines.append(f"Sound Level: {data['sound']}/255 (0=Silent, 255=Very Loud)")
+    if data.get('light') is not None:
+        lines.append(f"Light Level: {data['light']}/255 (0=Total Darkness, 255=Bright)")
+    if data.get('dust') is not None:
+        lines.append(f"Dust Density: {data['dust']} mg/m³")
+    if data.get('motion') is not None:
+        lines.append(f"Motion Detected: {'Yes' if data['motion'] == 1 else 'No'}")
     return '\n'.join(lines)
 
 # ══════════════════════════════════════════════════════════════
