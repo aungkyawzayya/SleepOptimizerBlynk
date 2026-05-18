@@ -83,7 +83,7 @@ async def fake_data_loop():
                     if key in blynk_client.PINS and key not in SKIP_KEYS:
                         blynk_client.update_pin(blynk_client.PINS[key], val)
 
-                logger.info(f"[FAKE] Sent: Temp={data.get('temperature')}°C | "
+                logger.info(f"[Sensor Data] Temp={data.get('temperature')}°C | "
                             f"Sound={data.get('sound')} | Light={data.get('light')} | "
                             f"Dust={data.get('dust')} | Motion={data.get('motion')} | "
                             f"Fan={data.get('fan')}")

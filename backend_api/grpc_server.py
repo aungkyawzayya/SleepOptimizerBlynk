@@ -31,7 +31,15 @@ class SensorDataService(sensor_data_pb2_grpc.SensorDataServiceServicer):
                 if key in blynk_client.PINS and key not in SKIP_KEYS:
                     blynk_client.update_pin(blynk_client.PINS[key], val)
             
-            logger.info(f"gRPC Data Synced to Blynk: {data['temperature']}C")
+            logger.info(
+                f"gRPC Received from Pi >> "
+                f"Temp: {data['temperature']}°C | "
+                f"Sound: {data['sound']} | "
+                f"Light: {data['light']} | "
+                f"Dust: {data['dust']} mg/m³ | "
+                f"Motion: {'Yes' if data['motion'] else 'No'} | "
+                f"Fan: {data['fan']} | Saved to MySQL ✓"
+            )
             return sensor_data_pb2.SensorDataResponse(success=True, message="Synced")
         except Exception as e:
             logger.error(f"Bridge Error: {e}")
